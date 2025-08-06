@@ -25,21 +25,21 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def connect_to_mongodb():
     """Membuat koneksi ke database MongoDB Atlas menggunakan environment variable."""
-    # DIUBAH: Ambil URI dari environment variable 'MONGO_URI'
     uri = os.environ.get("MONGO_URI")
     
+    # DIUBAH: Logika URI yang benar untuk testing lokal vs. GitHub Actions
     if not uri:
-        print("❌ Gagal menemukan MONGO_URI. Pastikan secret sudah diatur di GitHub Actions.")
-        # Anda bisa menambahkan URI lokal di sini untuk testing di komputer Anda
-        uri = "mongodb+srv://samuelchinson:test123@cluster0.bxaivdh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0" 
-        return None
+        print("INFO: MONGO_URI tidak ditemukan di environment. Menggunakan URI lokal untuk testing.")
+        # Isi variabel uri dengan alamat cadangan
+        uri = "mongodb+srv://samuelchinson:test123@cluster0.bxaivdh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+        # DIHAPUS: Baris "return None" dihapus dari sini agar proses lanjut
     
+    # Proses akan lanjut ke sini menggunakan URI dari environment ATAU dari cadangan
     client = MongoClient(uri, server_api=ServerApi('1'))
     try:
         client.admin.command('ping')
         print("✅ Berhasil terhubung ke MongoDB!")
         db = client['tokopedia_db']
-        # Kembalikan client dan db
         return db, client
     except Exception as e:
         print(f"❌ Gagal terhubung ke MongoDB: {e}")
@@ -520,23 +520,18 @@ def hapus_data_tidak_logis(db):
 def main():
     """Fungsi utama untuk menjalankan aplikasi."""
     db, client = connect_to_mongodb()
-
+    
     if db is None:
         return
 
-    # Cek apakah skrip dijalankan dalam mode otomatis (untuk GitHub Actions)
+    # Cek apakah skrip dijalankan dalam mode otomatis
     if '--auto' in sys.argv:
-        print("🤖 Menjalankan dalam mode otomatis...")
-        # Langsung jalankan fungsi scrape tanpa menampilkan menu
-        # Ganti "pc gaming" dengan kata kunci default yang Anda inginkan
-        scrape_and_save(db, auto_keyword="pc gaming") 
+        scrape_and_save(db, auto_keyword="pc gaming")
     else:
         # Jalankan mode menu interaktif jika tidak dalam mode otomatis
         print("=========================================")
         print("🤖 Selamat Datang di Bot Tokopedia (MongoDB Edition)")
         print("=========================================")
-        
-        # Logika menu interaktif Anda diletakkan di sini
         while True:
             print("\n--- MENU UTAMA ---")
             print("1. ⚙️  Scrape data produk baru")
@@ -564,10 +559,9 @@ def main():
             else:
                 print("❌ Pilihan tidak valid, silakan coba lagi.")
 
-    # Tutup koneksi ke database setelah selesai
     if client:
         client.close()
-        print("Koneosi ke MongoDB ditutup.")
+        print("Koneksi ke MongoDB ditutup.")
 
 if __name__ == "__main__":
     main()

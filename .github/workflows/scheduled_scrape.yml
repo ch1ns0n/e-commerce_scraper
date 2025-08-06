@@ -36,10 +36,10 @@ jobs:
 
       # 4. Menjalankan skrip scraper utama
       - name: Run Main Scraper
-        # PENTING: Mengambil secret dan menyediakannya sebagai environment variable
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
-        run: python scrape_db.py --auto # Kita akan tambahkan argumen --auto nanti
+        # DIUBAH: Tambahkan argumen --auto
+        run: python scrape_db.py --auto
 
       # 5. Menjalankan ulang clustering
       - name: Run Clustering

@@ -183,7 +183,7 @@ def scrape_tokopedia_realtime(keyword: str) -> pd.DataFrame:
 # --- Bagian 4: Fungsi untuk menjalankan fitur-fitur baru ---
 def scrape_and_save(db, auto_keyword=None):
     """
-    Mengatur proses scraping dan menyimpan data ke MongoDB dengan logika INSERT/UPDATE
+    Mengatur scraping dan menyimpan data dengan logika INSERT/UPDATE
     serta prediksi cluster secara real-time untuk produk baru.
     """
     if db is None:
@@ -196,7 +196,7 @@ def scrape_and_save(db, auto_keyword=None):
         print(f"Mode otomatis berjalan untuk kata kunci: '{keyword}'")
     else:
         keyword = input("\n> Masukkan kata kunci produk untuk di-scrape: ")
-    
+
     if not keyword:
         print("❌ Kata kunci tidak boleh kosong.")
         return
@@ -224,10 +224,10 @@ def scrape_and_save(db, auto_keyword=None):
     for index, row in hasil_df.iterrows():
         product_data = row.to_dict()
         query_filter = {
-            "Nama Produk": product_data["Nama Produk"],
-            "Toko": product_data["Toko"]
+            "Nama Produk": product_data.get("Nama Produk"),
+            "Toko": product_data.get("Toko")
         }
-        
+
         # Cek apakah produk sudah ada
         existing_product = collection.find_one(query_filter)
 
@@ -239,16 +239,20 @@ def scrape_and_save(db, auto_keyword=None):
         else:
             # JIKA BARU: Prediksi cluster lalu INSERT
             if model and scaler:
-                fitur_produk = pd.DataFrame([row[['Harga', 'Rating', 'Produk Terjual']]])
-                fitur_scaled = scaler.transform(fitur_produk)
-                cluster_prediksi = model.predict(fitur_scaled)[0]
-                product_data['Cluster'] = int(cluster_prediksi + 1)
+                try:
+                    fitur_produk = pd.DataFrame([row[['Harga', 'Rating', 'Terjual']]])
+                    fitur_scaled = scaler.transform(fitur_produk)
+                    cluster_prediksi = model.predict(fitur_scaled)[0]
+                    product_data['Cluster'] = int(cluster_prediksi + 1)
+                except Exception as e:
+                    print(f"Gagal memprediksi cluster untuk produk baru: {e}")
+                    product_data['Cluster'] = -1
             else:
-                product_data['Cluster'] = -1 # Default jika model tidak ada
-            
+                product_data['Cluster'] = -1
+
             collection.insert_one(product_data)
             inserted_count += 1
-            
+
     print(f"\n✅ Proses selesai!")
     print(f"   -> Produk baru ditambahkan: {inserted_count}")
     print(f"   -> Produk yang sudah ada diperbarui: {updated_count}")
@@ -516,19 +520,23 @@ def hapus_data_tidak_logis(db):
 def main():
     """Fungsi utama untuk menjalankan aplikasi."""
     db, client = connect_to_mongodb()
-    
+
     if db is None:
-        print("Keluar dari program karena tidak ada koneksi database.")
         return
 
-    # Cek apakah skrip dijalankan dalam mode otomatis untuk GitHub Actions
+    # Cek apakah skrip dijalankan dalam mode otomatis (untuk GitHub Actions)
     if '--auto' in sys.argv:
-        scrape_and_save(db, auto_keyword="pc gaming") # Ganti keyword default jika perlu
+        print("🤖 Menjalankan dalam mode otomatis...")
+        # Langsung jalankan fungsi scrape tanpa menampilkan menu
+        # Ganti "pc gaming" dengan kata kunci default yang Anda inginkan
+        scrape_and_save(db, auto_keyword="pc gaming") 
     else:
         # Jalankan mode menu interaktif jika tidak dalam mode otomatis
         print("=========================================")
         print("🤖 Selamat Datang di Bot Tokopedia (MongoDB Edition)")
         print("=========================================")
+        
+        # Logika menu interaktif Anda diletakkan di sini
         while True:
             print("\n--- MENU UTAMA ---")
             print("1. ⚙️  Scrape data produk baru")
@@ -555,10 +563,11 @@ def main():
                 break
             else:
                 print("❌ Pilihan tidak valid, silakan coba lagi.")
-    
+
+    # Tutup koneksi ke database setelah selesai
     if client:
         client.close()
-        print("Koneksi ke MongoDB ditutup.")
+        print("Koneosi ke MongoDB ditutup.")
 
 if __name__ == "__main__":
     main()

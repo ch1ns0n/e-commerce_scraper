@@ -7,6 +7,7 @@ import re
 import joblib
 import warnings
 import matplotlib.pyplot as plt
+import sys
 import seaborn as sns
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -89,40 +90,20 @@ def klik_tombol_next_page(driver) -> bool:
         return False
 
 def parse_terjual(text: str) -> int:
-    """
-    Mengurai teks 'terjual' menjadi integer yang akurat.
-    Contoh: 'Terjual 50+' -> 50, 'Terjual 1,5 rb' -> 1500, 'Terjual 2' -> 2
-    """
-    if not isinstance(text, str) or 'terjual' not in text.lower():
-        return 0
-    
+    if not isinstance(text, str) or 'terjual' not in text.lower(): return 0
     try:
-        # 1. Bersihkan teks awal dan siapkan multiplier
         text_cleaned = text.lower().replace('terjual', '').replace('+', '').strip()
         multiplier = 1
-        
-        # 2. Cek apakah ada 'rb' (ribu)
         if 'rb' in text_cleaned:
             multiplier = 1000
             text_cleaned = text_cleaned.replace('rb', '').strip()
-        
-        # 3. Ganti koma desimal dengan titik dan ekstrak angka
         numeric_part_str = text_cleaned.replace(',', '.')
-        
-        # Ekstrak hanya angka dan titik desimal menggunakan regex
         found_numbers = re.findall(r'[\d.]+', numeric_part_str)
-        if not found_numbers:
-            return 0
-            
+        if not found_numbers: return 0
         value = float(found_numbers[0])
-        
-        # 4. Hitung nilai akhir
-        final_value = int(value * multiplier)
-        
-        return final_value
-    except (ValueError, TypeError, IndexError):
-        # Jika terjadi error saat konversi, kembalikan 0
-        return 0
+        return int(value * multiplier)
+    except (ValueError, TypeError, IndexError): return 0
+
 
 def ambil_data_dari_halaman(driver, produk_ditemukan: list):
     soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -200,19 +181,34 @@ def scrape_tokopedia_realtime(keyword: str) -> pd.DataFrame:
 
 
 # --- Bagian 4: Fungsi untuk menjalankan fitur-fitur baru ---
-
-def scrape_and_save(db):
+def scrape_and_save(db, auto_keyword=None):
     """
-    Mengatur proses scraping dan menyimpan data ke MongoDB dengan logika upsert.
+    Mengatur proses scraping dan menyimpan data ke MongoDB dengan logika INSERT/UPDATE
+    serta prediksi cluster secara real-time untuk produk baru.
     """
     if db is None:
-        print("Koneksi database tidak tersedia. Proses dibatalkan.")
+        print("Koneksi database tidak tersedia.")
         return
-        
-    keyword = input("\n> Masukkan kata kunci produk untuk di-scrape: ")
+
+    # DIUBAH: Logika input kata kunci yang benar
+    if auto_keyword:
+        keyword = auto_keyword
+        print(f"Mode otomatis berjalan untuk kata kunci: '{keyword}'")
+    else:
+        keyword = input("\n> Masukkan kata kunci produk untuk di-scrape: ")
+    
     if not keyword:
         print("❌ Kata kunci tidak boleh kosong.")
         return
+
+    try:
+        scaler = joblib.load('scaler.pkl')
+        model = joblib.load('kmeans_model.pkl')
+        print("INFO: Model clustering berhasil dimuat.")
+    except FileNotFoundError:
+        print("⚠️ Peringatan: File model (scaler.pkl/kmeans_model.pkl) tidak ditemukan.")
+        print("   -> Produk baru tidak akan diklasifikasikan. Jalankan run_clustering.py terlebih dahulu.")
+        scaler, model = None, None
 
     hasil_df = scrape_tokopedia_realtime(keyword)
 
@@ -220,68 +216,38 @@ def scrape_and_save(db):
         print("❌ Tidak ada produk yang ditemukan untuk di-scrape.")
         return
 
-    # Pilih koleksi (mirip tabel) di dalam database Anda
     collection = db['products']
-    
     inserted_count = 0
     updated_count = 0
     print("🔄 Memproses dan menyimpan data ke MongoDB...")
-    
-    try:
-        # BARU: Muat model dan scaler yang sudah ada
-        scaler = joblib.load('scaler.pkl')
-        model = joblib.load('kmeans_model.pkl')
-        print("Model clustering berhasil dimuat.")
-    except FileNotFoundError:
-        print("⚠️ File model tidak ditemukan. Harap jalankan run_clustering.py terlebih dahulu.")
-        return
 
-    # Loop setiap produk hasil scrape
     for index, row in hasil_df.iterrows():
-        # Ubah baris DataFrame menjadi dictionary
         product_data = row.to_dict()
-        
-        # Tentukan filter untuk mencari dokumen yang cocok
         query_filter = {
             "Nama Produk": product_data["Nama Produk"],
             "Toko": product_data["Toko"]
         }
         
-        # Buat data yang akan di-update atau di-insert
-        update_data = {"$set": product_data}
-        
-        # Jalankan perintah upsert (update or insert)
-        result = collection.update_one(query_filter, update_data, upsert=True)
+        # Cek apakah produk sudah ada
+        existing_product = collection.find_one(query_filter)
 
-        if result.upserted_id is not None:
-            inserted_count += 1
-        elif result.matched_count > 0:
+        if existing_product:
+            # JIKA ADA: Lakukan UPDATE
+            update_data = {"$set": product_data}
+            collection.update_one(query_filter, update_data)
             updated_count += 1
         else:
-            # JIKA TIDAK ADA (PRODUK BARU):
-            # 1. Siapkan fitur untuk prediksi
-            fitur_produk = pd.DataFrame([row[['Harga', 'Rating', 'Terjual']]])
+            # JIKA BARU: Prediksi cluster lalu INSERT
+            if model and scaler:
+                fitur_produk = pd.DataFrame([row[['Harga', 'Rating', 'Produk Terjual']]])
+                fitur_scaled = scaler.transform(fitur_produk)
+                cluster_prediksi = model.predict(fitur_scaled)[0]
+                product_data['Cluster'] = int(cluster_prediksi + 1)
+            else:
+                product_data['Cluster'] = -1 # Default jika model tidak ada
             
-            # 2. Lakukan scaling pada fitur
-            fitur_scaled = scaler.transform(fitur_produk)
-            
-            # 3. Prediksi clusternya
-            cluster_prediksi = model.predict(fitur_scaled)[0]
-            
-            # 4. Tambahkan hasil prediksi ke data produk
-            product_data = row.to_dict()
-            product_data['Cluster'] = int(cluster_prediksi + 1) # Tambah 1 agar jadi 1-5
-            
-            # 5. Lakukan INSERT dokumen baru yang sudah lengkap
             collection.insert_one(product_data)
             inserted_count += 1
-
-        # Tambahkan hasil prediksi ke data sebelum disimpan
-        row['Cluster'] = int(cluster_prediksi + 1) # Tambah 1 agar jadi 1-5
-
-        # Lakukan INSERT dengan data yang sudah ada clusternya
-        collection.insert_one(row.to_dict())
-        inserted_count += 1
             
     print(f"\n✅ Proses selesai!")
     print(f"   -> Produk baru ditambahkan: {inserted_count}")
@@ -548,47 +514,51 @@ def hapus_data_tidak_logis(db):
 # --- Bagian 5: Fungsi Utama (Main) dengan Menu ---
 
 def main():
-    """Fungsi utama untuk menjalankan aplikasi dengan menu interaktif."""
-    # Ganti koneksi SQLite dengan MongoDB
+    """Fungsi utama untuk menjalankan aplikasi."""
     db, client = connect_to_mongodb()
     
     if db is None:
         print("Keluar dari program karena tidak ada koneksi database.")
         return
 
-    print("=========================================")
-    print("🤖 Selamat Datang di Bot Tokopedia (MongoDB Edition)")
-    print("=========================================")
+    # Cek apakah skrip dijalankan dalam mode otomatis untuk GitHub Actions
+    if '--auto' in sys.argv:
+        scrape_and_save(db, auto_keyword="pc gaming") # Ganti keyword default jika perlu
+    else:
+        # Jalankan mode menu interaktif jika tidak dalam mode otomatis
+        print("=========================================")
+        print("🤖 Selamat Datang di Bot Tokopedia (MongoDB Edition)")
+        print("=========================================")
+        while True:
+            print("\n--- MENU UTAMA ---")
+            print("1. ⚙️  Scrape data produk baru")
+            print("2. 🔍 Cari produk di database")
+            print("3. 📦 Lihat semua data di database")
+            print("4. 🗑️ Hapus data di bawah 1,5 juta")
+            print("5. 💾 Ekspor semua data ke CSV")
+            print("6. 🚪 Keluar")
 
-    while True:
-        print("\n--- MENU UTAMA ---")
-        print("1. ⚙️  Scrape data produk baru dari Tokopedia")
-        print("2. 🔍 Cari produk di database lokal")
-        print("3. 📦 Lihat semua data di database") # Pilihan baru
-        print("4. 🗑️ Hapus data di bawah 1,5 juta") # Pilihan baru
-        print("5. 💾 Ekspor semua data ke CSV") # Pilihan baru
-        print("6. 🚪 Keluar")
+            choice = input("> Pilih opsi: ")
 
-        choice = input("> Pilih opsi: ")
-
-        if choice == '1':
-            scrape_and_save(db)
-        elif choice == '2':
-            search_and_display(db)
-        elif choice == '3': # Pilihan baru
-            lihat_semua_data(db)
-        elif choice == '4': # Pilihan baru
-            hapus_data_tidak_logis(db)
-        elif choice == '5': # Pilihan baru
-            ekspor_semua_ke_csv(db)
-        elif choice == '6': # Nomor urut disesuaikan
-            print("\n👋 Terima kasih! Sampai jumpa!")
-            break
-        else:
-            print("❌ Pilihan tidak valid, silakan coba lagi.")
+            if choice == '1':
+                scrape_and_save(db)
+            elif choice == '2':
+                search_and_display(db)
+            elif choice == '3':
+                lihat_semua_data(db)
+            elif choice == '4':
+                hapus_data_tidak_logis(db)
+            elif choice == '5':
+                ekspor_semua_ke_csv(db)
+            elif choice == '6':
+                print("\n👋 Terima kasih! Sampai jumpa!")
+                break
+            else:
+                print("❌ Pilihan tidak valid, silakan coba lagi.")
     
     if client:
         client.close()
+        print("Koneksi ke MongoDB ditutup.")
 
 if __name__ == "__main__":
     main()

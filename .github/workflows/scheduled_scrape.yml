@@ -1,0 +1,48 @@
+# Nama workflow yang akan muncul di tab Actions GitHub
+name: Scheduled Tokopedia Scraper
+
+# Pemicu (trigger) workflow
+on:
+  # Berjalan sesuai jadwal (menggunakan format cron)
+  schedule:
+    # Menjalankan setiap hari jam 7 pagi WIB (00:00 UTC)
+    - cron: '0 0 * * *'
+  # Memungkinkan Anda menjalankan workflow ini secara manual dari tab Actions
+  workflow_dispatch:
+
+# Daftar pekerjaan (jobs) yang akan dilakukan
+jobs:
+  scrape-and-cluster:
+    # Menjalankan di server Ubuntu terbaru yang disediakan GitHub
+    runs-on: ubuntu-latest
+
+    # Langkah-langkah (steps) yang akan dieksekusi
+    steps:
+      # 1. Mengunduh kode dari repositori Anda ke server
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Menyiapkan lingkungan Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # Sesuaikan dengan versi Python Anda
+
+      # 3. Menginstal semua library yang dibutuhkan
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas pymongo selenium webdriver-manager scikit-learn matplotlib seaborn
+
+      # 4. Menjalankan skrip scraper utama
+      - name: Run Main Scraper
+        # PENTING: Mengambil secret dan menyediakannya sebagai environment variable
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+        run: python scrape_db.py --auto # Kita akan tambahkan argumen --auto nanti
+
+      # 5. Menjalankan ulang clustering
+      - name: Run Clustering
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+        run: python run_clustering.py

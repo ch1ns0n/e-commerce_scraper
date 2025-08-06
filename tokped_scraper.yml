@@ -1,0 +1,9 @@
+name: tokped_scraper
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - pandas
+  - beautifulsoup4
+  - selenium
+  - pip

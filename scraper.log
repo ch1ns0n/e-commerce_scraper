@@ -1,0 +1,8 @@
+2025-07-31 15:55:45,846 - INFO - Selamat Datang di Bot Tokopedia Lanjutan
+2025-07-31 15:55:45,846 - INFO - Database terhubung di: tokopedia_products.db
+2025-07-31 15:56:03,744 - INFO - ====== WebDriver manager ======
+2025-07-31 15:56:04,330 - INFO - Get LATEST chromedriver version for google-chrome
+2025-07-31 15:56:04,424 - INFO - Get LATEST chromedriver version for google-chrome
+2025-07-31 15:56:04,489 - INFO - Driver [C:\Users\user\.wdm\drivers\chromedriver\win64\138.0.7204.183\chromedriver-win32/chromedriver.exe] found in cache
+2025-07-31 15:56:10,507 - INFO -    -> Menunggu kontainer produk muncul di halaman...
+2025-07-31 15:56:10,523 - INFO -    -> Kontainer produk ditemukan!

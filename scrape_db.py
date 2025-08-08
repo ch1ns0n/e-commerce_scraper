@@ -526,7 +526,15 @@ def main():
 
     # Cek apakah skrip dijalankan dalam mode otomatis
     if '--auto' in sys.argv:
-        scrape_and_save(db, auto_keyword="pc gaming")
+        print("🤖 Menjalankan dalam mode otomatis...")
+        
+        # Buat daftar kata kunci yang ingin di-scrape
+        keywords_to_scrape = ["pc gaming", "laptop gaming", "vga rtx 4070", "monitor gaming"]
+        for keyword in keywords_to_scrape:
+            print(f"\n--- Memulai scrape untuk: '{keyword}' ---")
+            scrape_and_save(db, auto_keyword=keyword)
+            # Beri jeda singkat antar keyword
+            time.sleep(10) 
     else:
         # Jalankan mode menu interaktif jika tidak dalam mode otomatis
         print("=========================================")

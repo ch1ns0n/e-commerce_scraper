@@ -94,14 +94,34 @@ if page == "📈 Dashboard Analisis":
 
     if total_produk > 0:
         st.header("Visualisasi Analisis Pasar")
+
+        # 1. Definisikan kedua grafik terlebih dahulu
         fig_scatter = px.scatter(
             df_display[df_display.get('Cluster', pd.Series([-1])).ne(-1)],
-            x="Terjual", y="Harga", color="Cluster",
+            x="Terjual",
+            y="Harga",
+            color="Cluster",
             color_continuous_scale=px.colors.sequential.Viridis,
-            hover_name="Nama Produk", title="Peta Segmen Pasar (Harga vs. Penjualan)"
+            hover_name="Nama Produk",
+            title="Peta Segmen Pasar (Harga vs. Penjualan)"
         )
-        st.plotly_chart(fig_scatter, use_container_width=True)
-        st.subheader("Data Produk")
+        fig_scatter.update_layout(plot_bgcolor="rgba(0,0,0,0)")
+
+        df_top_toko = df_display['Toko'].value_counts().nlargest(10)
+        fig_bar = px.bar(
+            df_top_toko,
+            orientation='h',
+            title="Papan Peringkat Toko (Top 10)",
+            labels={'value': 'Jumlah Produk', 'index': 'Toko'}
+        )
+        fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
+
+        # 2. Buat layout 2 kolom dan tampilkan grafiknya
+        left_column, right_column = st.columns(2)
+        left_column.plotly_chart(fig_scatter, use_container_width=True)
+        right_column.plotly_chart(fig_bar, use_container_width=True)
+
+        st.subheader("Data Produk (Diurutkan berdasarkan Penjualan & Rating)")
         st.dataframe(df_display)
     else:
         st.warning("Tidak ada data yang cocok dengan filter yang Anda pilih.")
@@ -126,9 +146,9 @@ elif page == "🎮 Simulasi Produk Baru":
             st.markdown("Pilih komponen utama untuk estimasi harga:")
             col1, col2 = st.columns(2)
             with col1:
-                pilihan_cpu = st.selectbox("Prosesor (CPU):", ('i5', 'i7', 'i9', 'Ryzen 5', 'Ryzen 7', 'Ryzen 9'))
+                pilihan_cpu = st.selectbox("Prosesor (CPU):", ('Intel i3', 'Intel i5', 'Intel i7', 'Intel i9', 'AMD Ryzen 3', 'AMD Ryzen 5', 'AMD Ryzen 7', 'AMD Ryzen 9'))
             with col2:
-                pilihan_gpu = st.selectbox("Kartu Grafis (GPU):", ('3060', '4060', '4070', '4080', '4090'))
+                pilihan_gpu = st.selectbox("Kartu Grafis (GPU):", ('RTX 3050', 'RTX 3060', 'RTX 3070', 'RTX 3080', 'RTX 3090', 'RTX 4050', 'RTX 4060', 'RTX 4070', 'RTX 4080', 'RTX 4090', 'RTX 5060', 'RTX 5070','RTX 5080', 'RX 6500', 'RX 6700 XT', 'RX 6800 XT', 'RX 6900 XT', 'RX 9060'))
 
             submitted = st.form_submit_button("Jalankan Simulasi")
 

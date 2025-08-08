@@ -6,7 +6,7 @@ on:
   # Berjalan sesuai jadwal (menggunakan format cron)
   schedule:
     # Menjalankan setiap hari jam 7 pagi WIB (00:00 UTC)
-    - cron: '0 0 * * *'
+    - cron: '0 5 * * *'
   # Memungkinkan Anda menjalankan workflow ini secara manual dari tab Actions
   workflow_dispatch:
 

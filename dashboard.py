@@ -23,9 +23,6 @@ def load_data():
         df = df.drop(columns=['_id'])
     if 'Cluster' in df.columns:
         df['Cluster'] = df['Cluster'].fillna(-1).astype(int)
-    # DIUBAH: Mengganti nama kolom 'Terjual' menjadi 'Terjual' agar konsisten
-    if 'Terjual' in df.columns:
-        df.rename(columns={'Terjual': 'Terjual'}, inplace=True)
     return df
 
 @st.cache_resource
@@ -80,106 +77,73 @@ if page == "📈 Dashboard Analisis":
             word_mask = (df_selection['Nama Produk'].str.contains(word, case=False, na=False) | df_selection['Toko'].str.contains(word, case=False, na=False))
             df_selection = df_selection[word_mask]
 
-    # DIUBAH: Menggunakan nama kolom yang benar "Terjual"
     df_display = df_selection.sort_values(by=["Terjual", "Rating"], ascending=[False, False])
     
-    total_produk = len(df_display)
-    harga_rata2 = int(df_display["Harga"].mean()) if total_produk > 0 else 0
-    terjual_rata2 = int(df_display["Terjual"].mean()) if total_produk > 0 else 0 # DIUBAH
+    # BARU: Menggunakan kontainer agar metrik lebih rapi
+    with st.container(border=True):
+        total_produk = len(df_display)
+        harga_rata2 = int(df_display["Harga"].mean()) if total_produk > 0 else 0
+        terjual_rata2 = int(df_display["Terjual"].mean()) if total_produk > 0 else 0
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Produk Ditemukan", f"{total_produk}")
-    col2.metric("Rata-rata Harga", f"Rp {harga_rata2:,}")
-    col3.metric("Rata-rata Penjualan", f"{int(terjual_rata2)}")
-    st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Produk Ditemukan", f"{total_produk}")
+        col2.metric("Rata-rata Harga", f"Rp {harga_rata2:,}")
+        col3.metric("Rata-rata Penjualan", f"{int(terjual_rata2)}")
 
     if total_produk > 0:
-        st.header("Visualisasi Analisis Pasar")
+        # BARU: Menggunakan st.tabs untuk merapikan konten
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 Visualisasi Utama", "🕵️‍♂️ Intip Kompetitor", "💎 Kalkulator Peluang", "📋 Data Mentah"])
 
-        fig_scatter = px.scatter(
-            df_display[df_display.get('Cluster', pd.Series([-1])).ne(-1)],
-            x="Terjual", # DIUBAH
-            y="Harga",
-            color="Cluster",
-            color_continuous_scale=px.colors.sequential.Viridis,
-            hover_name="Nama Produk",
-            title="Peta Segmen Pasar (Harga vs. Penjualan)"
-        )
-        fig_scatter.update_layout(plot_bgcolor="rgba(0,0,0,0)")
-
-        df_top_toko = df_display['Toko'].value_counts().nlargest(10)
-        fig_bar = px.bar(
-            df_top_toko,
-            orientation='h',
-            title="Papan Peringkat Toko (Top 10)",
-            labels={'value': 'Jumlah Produk', 'index': 'Toko'}
-        )
-        fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
-
-        left_column, right_column = st.columns(2)
-        left_column.plotly_chart(fig_scatter, use_container_width=True)
-        right_column.plotly_chart(fig_bar, use_container_width=True)
-
-        st.subheader("Data Produk (Diurutkan berdasarkan Penjualan & Rating)")
-        st.dataframe(df_display)
-        
-        # --- FITUR INTIP KOMPETITOR ---
-        st.markdown("---")
-        st.header("🕵️‍♂️ Intip Kompetitor")
-
-        # --- FITUR KALKULATOR PELUANG ---
-        st.markdown("---")
-        st.header("💎 Kalkulator Peluang (Produk Paling 'Worth It')")
-
-        # 1. Siapkan data untuk scoring dari data yang sudah difilter
-        df_score = df_display[(df_display['Harga'] > 0) & (df_display['Terjual'] > 0) & (df_display['Rating'] > 0)].copy()
-
-        if not df_score.empty:
-            # 2. Normalisasi data (ubah skala 0-1)
-            scaler = MinMaxScaler()
-            df_score[['Harga_norm', 'Rating_norm', 'Terjual_norm']] = scaler.fit_transform(
-                df_score[['Harga', 'Rating', 'Terjual']]
+        with tab1:
+            st.header("Visualisasi Analisis Pasar")
+            fig_scatter = px.scatter(
+                df_display[df_display.get('Cluster', pd.Series([-1])).ne(-1)],
+                x="Terjual", y="Harga", color="Cluster", hover_name="Nama Produk",
+                title="Peta Segmen Pasar (Harga vs. Penjualan)"
             )
+            df_top_toko = df_display['Toko'].value_counts().nlargest(10)
+            fig_bar = px.bar(
+                df_top_toko, orientation='h', title="Papan Peringkat Toko (Top 10)",
+                labels={'value': 'Jumlah Produk', 'index': 'Toko'}
+            )
+            fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
+            left_column, right_column = st.columns(2)
+            left_column.plotly_chart(fig_scatter, use_container_width=True)
+            right_column.plotly_chart(fig_bar, use_container_width=True)
 
-            # 3. Buat Skor Peluang
-            # Kita ingin harga rendah (1 - Harga_norm), dan rating/penjualan tinggi
-            df_score['Skor Peluang'] = ( (1 - df_score['Harga_norm']) + df_score['Rating_norm'] + df_score['Terjual_norm'] )
-    
-            # 4. Tampilkan 10 produk dengan skor tertinggi
-            st.write("Top 10 produk dengan 'value' terbaik berdasarkan harga, rating, dan penjualan:")
-            df_top_value = df_score.sort_values(by="Skor Peluang", ascending=False).head(10)
-            st.dataframe(df_top_value[['Nama Produk', 'Harga', 'Rating', 'Terjual', 'Toko']])
-        else:
-            st.write("Tidak cukup data (produk dengan harga, rating, dan penjualan > 0) untuk menghitung skor peluang.")
+        with tab2:
+            st.header("🕵️‍♂️ Intip Kompetitor")
+            list_toko_filtered = df_display['Toko'].unique()
+            toko_terpilih = st.selectbox("Pilih Toko untuk dianalisis:", options=list_toko_filtered)
+            if toko_terpilih:
+                df_toko = df_display[df_display['Toko'] == toko_terpilih]
+                st.subheader(f"Profil Toko: {toko_terpilih}")
+                total_produk_toko = len(df_toko)
+                harga_rata2_toko = int(df_toko["Harga"].mean()) if total_produk_toko > 0 else 0
+                terjual_rata2_toko = int(df_toko["Terjual"].mean()) if total_produk_toko > 0 else 0
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Jumlah Listing", f"{total_produk_toko}")
+                c2.metric("Rata-rata Harga", f"Rp {harga_rata2_toko:,}")
+                c3.metric("Rata-rata Penjualan", f"{int(terjual_rata2_toko)}")
+                st.write("**Produk Terlaris dari Toko Ini:**")
+                st.dataframe(df_toko[['Nama Produk', 'Harga', 'Rating', 'Terjual']].sort_values(by="Terjual", ascending=False).head(5))
 
-        # 1. Buat dropdown untuk memilih toko
-        # Filter dulu toko yang ada di hasil seleksi saat ini
-        list_toko_filtered = df_display['Toko'].unique()
-        toko_terpilih = st.selectbox("Pilih Toko untuk dianalisis:", options=list_toko_filtered)
-
-        if toko_terpilih:
-            # 2. Filter data untuk toko yang dipilih saja
-            df_toko = df_display[df_display['Toko'] == toko_terpilih]
-    
-            st.subheader(f"Profil Toko: {toko_terpilih}")
-    
-            # 3. Tampilkan metrik utama toko tersebut
-            total_produk_toko = len(df_toko)
-            harga_rata2_toko = int(df_toko["Harga"].mean()) if total_produk_toko > 0 else 0
-            terjual_rata2_toko = int(df_toko["Terjual"].mean()) if total_produk_toko > 0 else 0
-
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Jumlah Listing Produk", f"{total_produk_toko}")
-            col2.metric("Rata-rata Harga Jual", f"Rp {harga_rata2_toko:,}")
-            col3.metric("Rata-rata Penjualan per Produk", f"{int(terjual_rata2_toko)}")
-    
-            # 4. Tampilkan produk terlaris dari toko tersebut
-            st.write("**Produk Terlaris dari Toko Ini:**")
-            st.dataframe(
-                df_toko[['Nama Produk', 'Harga', 'Rating', 'Terjual']].sort_values(
-                    by="Terjual", ascending=False
-                    ).head(5)
-                )
+        with tab3:
+            st.header("💎 Kalkulator Peluang (Produk Paling 'Worth It')")
+            df_score = df_display[(df_display['Harga'] > 0) & (df_display['Terjual'] > 0) & (df_display['Rating'] > 0)].copy()
+            if not df_score.empty:
+                scaler_norm = MinMaxScaler()
+                df_score[['Harga_norm', 'Rating_norm', 'Terjual_norm']] = scaler_norm.fit_transform(df_score[['Harga', 'Rating', 'Terjual']])
+                df_score['Skor Peluang'] = ((1 - df_score['Harga_norm']) + df_score['Rating_norm'] + df_score['Terjual_norm'])
+                st.write("Top 10 produk dengan 'value' terbaik:")
+                df_top_value = df_score.sort_values(by="Skor Peluang", ascending=False).head(10)
+                st.dataframe(df_top_value[['Nama Produk', 'Harga', 'Rating', 'Terjual', 'Toko']])
+            else:
+                st.write("Tidak cukup data untuk menghitung skor peluang.")
+        
+        with tab4:
+            st.subheader("Data Produk (Diurutkan berdasarkan Penjualan & Rating)")
+            st.dataframe(df_display)
     else:
         st.warning("Tidak ada data yang cocok dengan filter yang Anda pilih.")
 

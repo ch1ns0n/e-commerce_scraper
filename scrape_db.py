@@ -143,19 +143,21 @@ def scrape_tokopedia_realtime(keyword: str, max_pages: int = 5) -> pd.DataFrame:
     print(f"\n⚙️  Mencari produk '{keyword}' (maksimal {max_pages} halaman)...")
     
     options = webdriver.ChromeOptions()
-    # Argumen-argumen ini tetap penting
+    # --- OPSI PENTING UNTUK SERVER/OTOMASI ---
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    options.add_argument('log-level=3')
+    # -------------------------------------------
     
-    # DIUBAH: Gunakan uc.Chrome() bukan webdriver.Chrome()
-    driver = uc.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    options.add_argument('log-level=3')
+    options.add_argument('user-agent=Mozilla/5/0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
+    
+    # Gunakan uc.Chrome untuk menghindari deteksi bot
+    driver = uc.Chrome(options=options)
     
     produk_ditemukan = []
     try:
-        # Logika scraper setelah ini tetap sama persis
         driver.get("https://www.tokopedia.com")
         
         search_box = WebDriverWait(driver, 15).until(

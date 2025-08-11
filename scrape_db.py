@@ -143,17 +143,15 @@ def scrape_tokopedia_realtime(keyword: str, max_pages: int = 5) -> pd.DataFrame:
     print(f"\n⚙️  Mencari produk '{keyword}' (maksimal {max_pages} halaman)...")
     
     options = webdriver.ChromeOptions()
-    # --- OPSI PENTING UNTUK SERVER/OTOMASI ---
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    # -------------------------------------------
-    
     options.add_argument('log-level=3')
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
     
-    # Gunakan uc.Chrome untuk menghindari deteksi bot
+    # DIUBAH: Tidak perlu lagi Service dan ChromeDriverManager
+    # uc.Chrome() akan otomatis menemukan driver yang sudah disiapkan oleh GitHub Actions
     driver = uc.Chrome(options=options)
     
     produk_ditemukan = []
@@ -171,11 +169,11 @@ def scrape_tokopedia_realtime(keyword: str, max_pages: int = 5) -> pd.DataFrame:
         )
         print("   -> Halaman hasil pencarian berhasil dimuat!")
 
+        # ... (sisa loop for page_num... tetap sama persis) ...
         for page_num in range(1, max_pages + 1):
             print(f"📄 Mengambil data dari Halaman {page_num}...")
             time.sleep(random.uniform(1.5, 2.5))
             ambil_data_dari_halaman(driver, produk_ditemukan)
-            
             if page_num < max_pages:
                 try:
                     next_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[aria-label='Laman berikutnya']")))
@@ -185,8 +183,9 @@ def scrape_tokopedia_realtime(keyword: str, max_pages: int = 5) -> pd.DataFrame:
                 except TimeoutException:
                     print("🏁 Tombol 'Next' tidak ditemukan, ini halaman terakhir.")
                     break
+                    
     except TimeoutException:
-        print("❌ Gagal memuat halaman atau menemukan elemen. Mungkin ada CAPTCHA atau perubahan layout.")
+        print("❌ Gagal memuat halaman atau menemukan elemen. Mungkin ada CAPTCHA.")
         driver.save_screenshot("error_screenshot.png")
     finally:
         driver.quit()

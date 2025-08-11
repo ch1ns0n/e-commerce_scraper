@@ -151,7 +151,7 @@ def scrape_tokopedia_realtime(keyword: str, max_pages: int = 5) -> pd.DataFrame:
     # -------------------------------------------
     
     options.add_argument('log-level=3')
-    options.add_argument('user-agent=Mozilla/5/0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
     
     # Gunakan uc.Chrome untuk menghindari deteksi bot
     driver = uc.Chrome(options=options)

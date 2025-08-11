@@ -8,7 +8,6 @@ import joblib
 import warnings
 import matplotlib.pyplot as plt
 import sys
-import undetected_chromedriver as uc
 import seaborn as sns
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -139,56 +138,44 @@ def ambil_data_dari_halaman(driver, produk_ditemukan: list):
         except Exception:
             continue
 
-def scrape_tokopedia_realtime(keyword: str, max_pages: int = 5) -> pd.DataFrame:
-    print(f"\n⚙️  Mencari produk '{keyword}' (maksimal {max_pages} halaman)...")
-    
+def scrape_tokopedia_realtime(keyword: str) -> pd.DataFrame:
+    print(f"\n⚙️  Mencari produk untuk kata kunci: '{keyword}'...")
+    url_target = f"https://www.tokopedia.com/search?st=product&q={keyword.replace(' ', '%20')}"
+
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
     options.add_argument('log-level=3')
-    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36')
-    
-    # DIUBAH: Tidak perlu lagi Service dan ChromeDriverManager
-    # uc.Chrome() akan otomatis menemukan driver yang sudah disiapkan oleh GitHub Actions
-    driver = uc.Chrome(options=options)
-    
-    produk_ditemukan = []
-    try:
-        driver.get("https://www.tokopedia.com")
-        
-        search_box = WebDriverWait(driver, 15).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[data-testid='txtHeaderSearch']"))
-        )
-        search_box.send_keys(keyword)
-        search_box.send_keys(Keys.RETURN)
-        
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='divSRPContentProducts']"))
-        )
-        print("   -> Halaman hasil pencarian berhasil dimuat!")
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36')
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
 
-        # ... (sisa loop for page_num... tetap sama persis) ...
-        for page_num in range(1, max_pages + 1):
-            print(f"📄 Mengambil data dari Halaman {page_num}...")
-            time.sleep(random.uniform(1.5, 2.5))
-            ambil_data_dari_halaman(driver, produk_ditemukan)
-            if page_num < max_pages:
-                try:
-                    next_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[aria-label='Laman berikutnya']")))
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
-                    time.sleep(0.5)
-                    next_button.click()
-                except TimeoutException:
-                    print("🏁 Tombol 'Next' tidak ditemukan, ini halaman terakhir.")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver.get(url_target)
+
+    produk_ditemukan = []
+
+    try:
+        print("   -> Menunggu kontainer produk muncul di halaman...")
+        wait = WebDriverWait(driver, 15)
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='divSRPContentProducts']")))
+        print("   -> Kontainer produk ditemukan!")
+
+        if menggunakan_pagination(driver):
+            print("📄 Deteksi: Halaman menggunakan pagination klasik.")
+            while True:
+                ambil_data_dari_halaman(driver, produk_ditemukan)
+                if not klik_tombol_next_page(driver):
                     break
-                    
+        else:
+            print("🌀 Deteksi: Halaman menggunakan infinite scroll. Melakukan auto-scroll...")
+            scroll_to_load_products(driver)
+            ambil_data_dari_halaman(driver, produk_ditemukan)
+
     except TimeoutException:
-        print("❌ Gagal memuat halaman atau menemukan elemen. Mungkin ada CAPTCHA.")
-        driver.save_screenshot("error_screenshot.png")
+        print("   -> Gagal menemukan kontainer produk setelah menunggu. Kemungkinan halaman CAPTCHA atau halaman kosong.")
     finally:
-        driver.quit()
+        if 'driver' in locals() and driver:
+            driver.quit()
 
     return pd.DataFrame(produk_ditemukan)
 

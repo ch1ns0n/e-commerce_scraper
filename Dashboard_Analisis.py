@@ -21,6 +21,9 @@ def load_data():
         df = df.drop(columns=['_id'])
     if 'Cluster' in df.columns:
         df['Cluster'] = df['Cluster'].fillna(-1).astype(int)
+    # Standarisasi nama kolom 'Terjual' menjadi 'Terjual'
+    if 'Terjual' in df.columns and 'Terjual' not in df.columns:
+        df.rename(columns={'Terjual': 'Terjual'}, inplace=True)
     return df
 
 df = load_data()
@@ -69,13 +72,14 @@ if search_query:
                      df_selection['Toko'].str.contains(word, case=False, na=False))
         df_selection = df_selection[word_mask]
 
-# Urutkan data
+# DIUBAH: Menggunakan nama kolom yang benar "Terjual"
 df_display = df_selection.sort_values(by=["Terjual", "Rating"], ascending=[False, False])
 
 # --- Tampilan Utama ---
 with st.container(border=True):
     total_produk = len(df_display)
     harga_rata2 = int(df_display["Harga"].mean()) if total_produk > 0 else 0
+    # DIUBAH: Menggunakan nama kolom yang benar "Terjual"
     terjual_rata2 = int(df_display["Terjual"].mean()) if total_produk > 0 else 0
 
     col1, col2, col3 = st.columns(3)
@@ -84,10 +88,11 @@ with st.container(border=True):
     col3.metric("Rata-rata Penjualan", f"{int(terjual_rata2)}")
 
 if total_produk > 0:
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Visualisasi Utama", "🕵️‍♂️ Intip Kompetitor", "💎 Kalkulator Peluang", "📋 Data Mentah"])
+    # DIUBAH: Struktur Tab yang lebih rapi
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Peta & Peringkat", "🔬 Analisis Segmen", "🕵️‍♂️ Intip Kompetitor", "💎 Kalkulator Peluang", "📋 Data Mentah"])
 
     with tab1:
-        st.header("Visualisasi Analisis Pasar")
+        st.header("Visualisasi Utama Pasar")
         fig_scatter = px.scatter(
             df_display[df_display.get('Cluster', pd.Series([-1])).ne(-1)],
             x="Terjual", y="Harga", color="Cluster", hover_name="Nama Produk",
@@ -99,11 +104,30 @@ if total_produk > 0:
             labels={'value': 'Jumlah Produk', 'index': 'Toko'}
         )
         fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
+        
         left_column, right_column = st.columns(2)
         left_column.plotly_chart(fig_scatter, use_container_width=True)
         right_column.plotly_chart(fig_bar, use_container_width=True)
-
+        
     with tab2:
+        st.header("Analisis Mendalam per Segmen Pasar")
+        st.subheader("Perbandingan Distribusi Harga per Segmen")
+        fig_box = px.box(
+            df_display[df_display['Cluster'] > 0], x="Cluster", y="Harga", color="Cluster",
+            points="all", notched=True, title="Distribusi Harga di Setiap Cluster"
+        )
+        st.plotly_chart(fig_box, use_container_width=True)
+        
+        st.subheader("Struktur Pasar Berdasarkan Total Penjualan Toko")
+        df_treemap = df_display[df_display['Cluster'] > 0].groupby(['Cluster', 'Toko'])['Terjual'].sum().reset_index()
+        if not df_treemap.empty:
+            fig_treemap = px.treemap(
+                df_treemap, path=[px.Constant("Semua Pasar"), 'Cluster', 'Toko'],
+                values='Terjual', title="Peta Pangsa Pasar per Segmen"
+            )
+            st.plotly_chart(fig_treemap, use_container_width=True)
+
+    with tab3:
         st.header("🕵️‍♂️ Intip Kompetitor")
         list_toko_filtered = df_display['Toko'].unique()
         toko_terpilih = st.selectbox("Pilih Toko untuk dianalisis:", options=list_toko_filtered)
@@ -120,7 +144,7 @@ if total_produk > 0:
             st.write("**Produk Terlaris dari Toko Ini:**")
             st.dataframe(df_toko[['Nama Produk', 'Harga', 'Rating', 'Terjual']].sort_values(by="Terjual", ascending=False).head(5))
 
-    with tab3:
+    with tab4:
         st.header("💎 Kalkulator Peluang (Produk Paling 'Worth It')")
         df_score = df_display[(df_display['Harga'] > 0) & (df_display['Terjual'] > 0) & (df_display['Rating'] > 0)].copy()
         if not df_score.empty:
@@ -133,7 +157,7 @@ if total_produk > 0:
         else:
             st.write("Tidak cukup data untuk menghitung skor peluang.")
     
-    with tab4:
+    with tab5:
         st.subheader("Data Produk (Diurutkan berdasarkan Penjualan & Rating)")
         st.dataframe(df_display)
 else:

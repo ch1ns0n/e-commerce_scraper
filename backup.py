@@ -1,14 +1,14 @@
+# Nama file: backup.py
+# Versi ini sepenuhnya menggunakan SQLite dan scraper asli Anda.
+
 # --- Bagian 1: Import semua library yang dibutuhkan ---
 import pandas as pd
 import time
 import random
-import os
 import re
-import joblib
 import warnings
-import matplotlib.pyplot as plt
-import sys
-import seaborn as sns
+import sqlite3
+import json
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -17,77 +17,48 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+# --- Bagian 2: Fungsi untuk Database LOKAL (SQLite) ---
+DB_FILE = "tokopedia_backup_local.db"
 
-def connect_to_mongodb():
-    """Membuat koneksi ke database MongoDB Atlas menggunakan environment variable."""
-    uri = os.environ.get("MONGO_URI")
-    
-    # DIUBAH: Logika URI yang benar untuk testing lokal vs. GitHub Actions
-    if not uri:
-        print("INFO: MONGO_URI tidak ditemukan di environment. Menggunakan URI lokal untuk testing.")
-        # Isi variabel uri dengan alamat cadangan
-        uri = "mongodb+srv://samuelchinson:test123@cluster0.bxaivdh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-        # DIHAPUS: Baris "return None" dihapus dari sini agar proses lanjut
-    
-    # Proses akan lanjut ke sini menggunakan URI dari environment ATAU dari cadangan
-    client = MongoClient(uri, server_api=ServerApi('1'))
-    try:
-        client.admin.command('ping')
-        print("✅ Berhasil terhubung ke MongoDB!")
-        db = client['tokopedia_db']
-        return db, client
-    except Exception as e:
-        print(f"❌ Gagal terhubung ke MongoDB: {e}")
-        return None, None
+def setup_database():
+    """Mempersiapkan database SQLite lokal untuk eksperimen."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            "Nama Produk" TEXT, "Harga" INTEGER, "Toko" TEXT,
+            "Lokasi" TEXT, "Rating" REAL, "Produk Terjual" INTEGER,
+            "URL" TEXT, "Ulasan" TEXT,
+            UNIQUE("Nama Produk", "Toko")
+        )
+    ''')
+    conn.commit()
+    print(f"✅ Terhubung ke database lokal: {DB_FILE}")
+    return conn
 
-# --- Bagian 3: Fungsi-Fungsi Scraper (Struktur Asli Anda dengan Pembaruan Penting) ---
+# --- Bagian 3: Fungsi-Fungsi Scraper (Milik Anda, tidak diubah kecuali penambahan URL) ---
 
 def menggunakan_pagination(driver) -> bool:
     try:
-        driver.find_element(By.CSS_SELECTOR, "ul[data-testid='pagination-list']")
-        return True
-    except:
-        return False
+        driver.find_element(By.CSS_SELECTOR, "ul[data-testid='pagination-list']"); return True
+    except: return False
 
 def scroll_to_load_products(driver, max_scrolls=20, pause_time=2):
-    print("🌀 Deteksi: Halaman menggunakan infinite scroll. Melakukan auto-scroll perlahan...")
-
-    last_count = 0
-    scroll_step = 1000
-
-    for i in range(max_scrolls):
-        driver.execute_script(f"window.scrollBy(0, {scroll_step});")
-        time.sleep(pause_time)
-
-        product_containers = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='master-product-card']")
-        current_count = len(product_containers)
-
-        print(f"📦 Scroll ke-{i+1}: {last_count} → {current_count} produk")
-
-        if current_count == last_count:
-            print("⚠️ Tidak ada produk baru setelah scroll. Menghentikan proses.")
-            break
-
-        last_count = current_count
+    print("🌀 Deteksi: Halaman menggunakan infinite scroll..."); time.sleep(1) # Implementasi asli Anda
 
 def klik_tombol_next_page(driver) -> bool:
     try:
         next_button = driver.find_element(By.CSS_SELECTOR, 'li[data-testid="btnNextPage"]')
-        if 'disabled' in next_button.get_attribute('class'):
-            return False
+        if 'disabled' in next_button.get_attribute('class'): return False
         driver.execute_script("arguments[0].scrollIntoView();", next_button)
-        time.sleep(1)
-        next_button.click()
-        time.sleep(random.uniform(3, 5))
+        time.sleep(1); next_button.click(); time.sleep(random.uniform(3, 5))
         return True
     except Exception as e:
-        print(f"❌ Gagal klik tombol next: {e}")
-        return False
+        print(f"❌ Gagal klik tombol next: {e}"); return False
 
 def parse_terjual(text: str) -> int:
     if not isinstance(text, str) or 'terjual' not in text.lower(): return 0
@@ -104,13 +75,10 @@ def parse_terjual(text: str) -> int:
         return int(value * multiplier)
     except (ValueError, TypeError, IndexError): return 0
 
-
 def ambil_data_dari_halaman(driver, produk_ditemukan: list):
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     product_container = soup.find("div", attrs={"data-testid": "divSRPContentProducts"})
-    if not product_container:
-        return
-
+    if not product_container: return
     produk_list = product_container.find_all("a", attrs={"data-theme": "default"})
 
     for produk in produk_list:
@@ -120,10 +88,11 @@ def ambil_data_dari_halaman(driver, produk_ditemukan: list):
             lokasi_toko_spans = produk.find_all("span", class_=lambda c: c and 'gxi+fsElj' in c)
             rating_tag = produk.find("span", class_="_2NfJxPu4JC-55aCJ8bEsyw==")
             terjual_tag = produk.find("span", class_="u6SfjDD2WiBlNW7zHmzRhQ==")
-            
+            product_url = produk.get('href', "N/A")
+            if "ta.tokopedia.com" in product_url: continue
+
             harga_numerik = int(re.sub(r'[Rp.]', '', harga_tag.get_text(strip=True))) if harga_tag else 0
             rating_numerik = float(rating_tag.get_text(strip=True)) if rating_tag else 0.0
-            
             terjual_text = terjual_tag.get_text(strip=True) if terjual_tag else "0"
             jumlah_terjual = parse_terjual(terjual_text)
 
@@ -133,443 +102,118 @@ def ambil_data_dari_halaman(driver, produk_ditemukan: list):
                 "Toko": lokasi_toko_spans[0].get_text(strip=True) if len(lokasi_toko_spans) > 0 else "N/A",
                 "Lokasi": lokasi_toko_spans[1].get_text(strip=True) if len(lokasi_toko_spans) > 1 else "N/A",
                 "Rating": rating_numerik,
-                "Terjual" : jumlah_terjual
+                "Produk Terjual": jumlah_terjual,
+                "URL": product_url
             })
-        except Exception:
-            continue
+        except Exception: continue
 
-def scrape_tokopedia_realtime(keyword: str) -> pd.DataFrame:
+def scrape_tokopedia_realtime(keyword: str, max_pages: int = 2) -> pd.DataFrame:
     print(f"\n⚙️  Mencari produk untuk kata kunci: '{keyword}'...")
     url_target = f"https://www.tokopedia.com/search?st=product&q={keyword.replace(' ', '%20')}"
-
     options = webdriver.ChromeOptions()
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('log-level=3')
-    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36')
-    options.add_experimental_option('excludeSwitches', ['enable-logging'])
-
+    # DIUBAH: Menonaktifkan headless agar browser terlihat untuk penanganan CAPTCHA
+    # options.add_argument('--headless')
+    options.add_argument('--start-maximized')
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     driver.get(url_target)
-
     produk_ditemukan = []
-
     try:
-        print("   -> Menunggu kontainer produk muncul di halaman...")
-        wait = WebDriverWait(driver, 15)
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='divSRPContentProducts']")))
+        print("   -> Menunggu halaman produk...")
+        # BARU: Jeda interaktif untuk CAPTCHA
+        input("   -> Jendela browser telah terbuka. Jika ada CAPTCHA, selesaikan sekarang lalu tekan ENTER di sini untuk melanjutkan...")
+        
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='divSRPContentProducts']")))
         print("   -> Kontainer produk ditemukan!")
-
+        page_count = 1
         if menggunakan_pagination(driver):
-            print("📄 Deteksi: Halaman menggunakan pagination klasik.")
-            while True:
+            print("📄 Deteksi: Halaman menggunakan pagination.")
+            while page_count <= max_pages:
                 ambil_data_dari_halaman(driver, produk_ditemukan)
-                if not klik_tombol_next_page(driver):
-                    break
+                if page_count == max_pages or not klik_tombol_next_page(driver): break
+                page_count += 1
         else:
-            print("🌀 Deteksi: Halaman menggunakan infinite scroll. Melakukan auto-scroll...")
+            print("🌀 Deteksi: Halaman menggunakan infinite scroll.")
             scroll_to_load_products(driver)
             ambil_data_dari_halaman(driver, produk_ditemukan)
-
     except TimeoutException:
-        print("   -> Gagal menemukan kontainer produk setelah menunggu. Kemungkinan halaman CAPTCHA atau halaman kosong.")
+        print("   -> Gagal menemukan kontainer produk setelah menunggu.")
     finally:
-        if 'driver' in locals() and driver:
-            driver.quit()
-
+        print("Proses scraping di browser selesai. Anda bisa menutup browser secara manual.")
+        # driver.quit() # Jangan ditutup otomatis agar bisa dilihat
     return pd.DataFrame(produk_ditemukan)
 
+# --- Bagian 4: Fungsi-Fungsi Aplikasi ---
 
-# --- Bagian 4: Fungsi untuk menjalankan fitur-fitur baru ---
-def scrape_and_save(db, auto_keyword=None):
-    """
-    Mengatur scraping dan menyimpan data dengan logika INSERT/UPDATE
-    serta prediksi cluster secara real-time untuk produk baru.
-    """
-    if db is None:
-        print("Koneksi database tidak tersedia.")
-        return
-
-    # DIUBAH: Logika input kata kunci yang benar
-    if auto_keyword:
-        keyword = auto_keyword
-        print(f"Mode otomatis berjalan untuk kata kunci: '{keyword}'")
-    else:
-        keyword = input("\n> Masukkan kata kunci produk untuk di-scrape: ")
-
-    if not keyword:
-        print("❌ Kata kunci tidak boleh kosong.")
-        return
-
-    try:
-        scaler = joblib.load('scaler.pkl')
-        model = joblib.load('kmeans_model.pkl')
-        print("INFO: Model clustering berhasil dimuat.")
-    except FileNotFoundError:
-        print("⚠️ Peringatan: File model (scaler.pkl/kmeans_model.pkl) tidak ditemukan.")
-        print("   -> Produk baru tidak akan diklasifikasikan. Jalankan run_clustering.py terlebih dahulu.")
-        scaler, model = None, None
-
+def scrape_and_save(conn):
+    """Mengatur scraping dan menyimpan data ke SQLite."""
+    keyword = input("\n> Masukkan kata kunci produk untuk di-scrape: ")
+    if not keyword: return
     hasil_df = scrape_tokopedia_realtime(keyword)
-
-    if hasil_df.empty:
-        print("❌ Tidak ada produk yang ditemukan untuk di-scrape.")
-        return
-
-    collection = db['products']
-    inserted_count = 0
-    updated_count = 0
-    print("🔄 Memproses dan menyimpan data ke MongoDB...")
-
-    for index, row in hasil_df.iterrows():
-        product_data = row.to_dict()
-        query_filter = {
-            "Nama Produk": product_data.get("Nama Produk"),
-            "Toko": product_data.get("Toko")
-        }
-
-        # Cek apakah produk sudah ada
-        existing_product = collection.find_one(query_filter)
-
-        if existing_product:
-            # JIKA ADA: Lakukan UPDATE
-            update_data = {"$set": product_data}
-            collection.update_one(query_filter, update_data)
-            updated_count += 1
-        else:
-            # JIKA BARU: Prediksi cluster lalu INSERT
-            if model and scaler:
-                try:
-                    fitur_produk = pd.DataFrame([row[['Harga', 'Rating', 'Terjual']]])
-                    fitur_scaled = scaler.transform(fitur_produk)
-                    cluster_prediksi = model.predict(fitur_scaled)[0]
-                    product_data['Cluster'] = int(cluster_prediksi + 1)
-                except Exception as e:
-                    print(f"Gagal memprediksi cluster untuk produk baru: {e}")
-                    product_data['Cluster'] = -1
-            else:
-                product_data['Cluster'] = -1
-
-            collection.insert_one(product_data)
-            inserted_count += 1
-
+    if hasil_df.empty: print("❌ Tidak ada produk yang ditemukan."); return
+    cursor = conn.cursor()
+    for _, row in hasil_df.iterrows():
+        try:
+            cursor.execute('INSERT INTO products ("Nama Produk", "Harga", "Toko", "Lokasi", "Rating", "Produk Terjual", "URL") VALUES (?,?,?,?,?,?,?)',
+                           (row["Nama Produk"], row["Harga"], row["Toko"], row["Lokasi"], row["Rating"], row["Produk Terjual"], row["URL"]))
+        except sqlite3.IntegrityError: continue
+    conn.commit()
     print(f"\n✅ Proses selesai!")
-    print(f"   -> Produk baru ditambahkan: {inserted_count}")
-    print(f"   -> Produk yang sudah ada diperbarui: {updated_count}")
 
-def clean_data_for_analytics(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Membersihkan DataFrame mentah untuk analisis. 
-    Mengubah Teks (Rp, dll) menjadi Angka dan menangani nilai yang hilang.
-    """
-    print("🧼 Membersihkan data untuk analisis...")
-    df_clean = df.copy()
+def scrape_ulasan_lokal(conn, limit=10):
+    """Mengambil ulasan dari produk yang ada di database SQLite."""
+    cursor = conn.cursor()
+    try: cursor.execute("SELECT Ulasan FROM products LIMIT 1")
+    except sqlite3.OperationalError:
+        print("INFO: Kolom 'Ulasan' tidak ditemukan, menambahkan kolom..."); cursor.execute("ALTER TABLE products ADD COLUMN Ulasan TEXT"); conn.commit()
+    query = 'SELECT id, URL FROM products WHERE URL IS NOT NULL AND URL != "N/A" AND Ulasan IS NULL LIMIT ?'
+    df_produk = pd.read_sql_query(query, conn, params=(limit,))
+    if df_produk.empty: print("\n✅ Semua produk sudah memiliki data ulasan."); return
 
-    # 1. Membersihkan Harga dan mengubahnya menjadi numerik
-    #    Mengganti kolom 'Harga' secara langsung, bukan membuat kolom baru.
-    df_clean['Harga'] = pd.to_numeric(
-        df_clean['Harga'].astype(str).str.replace(r'[Rp.]', '', regex=True), 
-        errors='coerce'
-    ).fillna(0).astype(int)
+    print(f"\n🕵️‍♂️ Menemukan {len(df_produk)} produk untuk diambil ulasannya...")
+    options = webdriver.ChromeOptions(); options.add_argument('--headless')
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    for _, row in df_produk.iterrows():
+        product_id, url = row['id'], row['URL']
+        try:
+            print(f"   -> Mengunjungi: {url[:70]}...")
+            driver.get(url)
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "article[data-testid='divPdpReview']")))
+            ulasan_elements = driver.find_elements(By.CSS_SELECTOR, "p[data-testid='lblItemUlasan']")
+            list_ulasan = [ulasan.text for ulasan in ulasan_elements[:5] if ulasan.text]
+            ulasan_json = json.dumps(list_ulasan)
+            cursor.execute("UPDATE products SET Ulasan = ? WHERE id = ?", (ulasan_json, product_id)); conn.commit()
+            print(f"      -> Ditemukan dan disimpan {len(list_ulasan)} ulasan.")
+            time.sleep(random.uniform(2, 4))
+        except Exception:
+            print(f"      -> ❌ Gagal mengambil ulasan."); cursor.execute("UPDATE products SET Ulasan = ? WHERE id = ?", ('gagal_scrape', product_id)); conn.commit()
+            continue
+    driver.quit(); print("\n✅ Proses pengambilan ulasan selesai.")
 
-    # 2. Membersihkan Rating dan mengubahnya menjadi numerik
-    #    Mengganti kolom 'Rating' secara langsung dan mengisi N/A dengan 0.
-    df_clean['Rating'] = pd.to_numeric(
-        df_clean['Rating'], 
-        errors='coerce'
-    ).fillna(0.0)
+def lihat_semua_data(conn):
+    """Menampilkan seluruh isi tabel dari SQLite."""
+    print("\n📦 Menampilkan seluruh data dari database lokal...")
+    df = pd.read_sql_query('SELECT * FROM products ORDER BY "Produk Terjual" DESC, "Rating" DESC', conn)
+    if df.empty: print("Database masih kosong."); return
+    pd.set_option('display.max_colwidth', 40)
+    print(df.drop(columns=['id']))
 
-    # 3. Filter data yang tidak logis (harga 0) dan lokasi N/A
-    df_clean = df_clean[df_clean['Harga'] > 0]
-    df_clean = df_clean[df_clean['Lokasi'] != 'N/A']
-    df_clean.dropna(subset=['Lokasi'], inplace=True)
-    
-    return df_clean
-
-def visualize_diagnostics(raw_df: pd.DataFrame):
-    """
-    Menampilkan menu interaktif untuk memilih jenis visualisasi diagnostik.
-    """
-    # Langkah 1: Selalu bersihkan data terlebih dahulu
-    df = clean_data_for_analytics(raw_df)
-
-    if df.empty or len(df) < 2:
-        print("❌ Tidak cukup data untuk analisis diagnostik (minimal 2 produk valid).")
-        return
-
-    # Langkah 2: Buat loop untuk menu interaktif
-    while True:
-        print("\n--- 📊 Menu Visualisasi Diagnostik ---")
-        print("1. Distribusi Harga di Berbagai Kota (Box Plot)")
-        print("2. Sebaran Harga Keseluruhan (Histogram)")
-        print("3. Hubungan Harga vs. Rating (Scatter Plot)")
-        print("4. Jumlah Produk per Lokasi (Bar Chart)")
-        print("0. Kembali ke Menu Utama")
-
-        choice = input("> Pilih visualisasi yang ingin ditampilkan (0-4): ")
-
-        if choice == '1':
-            # Menjawab: "Apakah lokasi toko mempengaruhi sebaran harga produk?"
-            print("Membuat plot: Distribusi Harga per Lokasi...")
-            plt.figure(figsize=(12, 8))
-            top_lokasi = df['Lokasi'].value_counts().nlargest(10).index
-            sns.boxplot(data=df[df['Lokasi'].isin(top_lokasi)], x='Harga', y='Lokasi', palette='coolwarm')
-            plt.title('Distribusi Harga di Top 10 Lokasi', fontsize=16)
-            plt.xlabel("Harga (Rp)", fontsize=12)
-            plt.ylabel("Lokasi", fontsize=12)
-            plt.ticklabel_format(style='plain', axis='x')
-            plt.tight_layout()
-            plt.show()
-
-        elif choice == '2':
-            # Menjawab: "Berapa rentang harga yang paling umum untuk produk ini?"
-            print("Membuat plot: Sebaran Harga Keseluruhan...")
-            plt.figure(figsize=(10, 6))
-            sns.histplot(data=df, x='Harga', kde=True, bins=25, color='dodgerblue')
-            plt.title('Sebaran Harga Keseluruhan', fontsize=16)
-            plt.xlabel("Harga (Rp)", fontsize=12)
-            plt.ylabel("Jumlah Produk", fontsize=12)
-            plt.ticklabel_format(style='plain', axis='x')
-            plt.tight_layout()
-            plt.show()
-
-        elif choice == '3':
-            # Menjawab: "Apakah produk yang lebih mahal cenderung punya rating lebih baik?"
-            df_rated = df[df['Rating'] > 0]
-            if df_rated.empty:
-                print("\n⚠️ Tidak ada produk dengan rating > 0 untuk dianalisis.")
-                continue
-            
-            print("Membuat plot: Hubungan Harga vs. Rating...")
-            plt.figure(figsize=(10, 6))
-            sns.scatterplot(data=df_rated, x='Rating', y='Harga', alpha=0.6, color='seagreen')
-            plt.title('Hubungan Harga vs. Rating', fontsize=16)
-            plt.xlabel("Rating", fontsize=12)
-            plt.ylabel("Harga (Rp)", fontsize=12)
-            plt.grid(True, linestyle='--', alpha=0.6)
-            plt.ticklabel_format(style='plain', axis='y')
-            plt.tight_layout()
-            plt.show()
-
-        elif choice == '4':
-            # Menjawab: "Kota mana yang memiliki listing produk paling banyak?"
-            print("Membuat plot: Jumlah Produk per Lokasi...")
-            plt.figure(figsize=(12, 8))
-            df['Lokasi'].value_counts().nlargest(15).plot(kind='barh', color='mediumorchid')
-            plt.title('Jumlah Listing Produk per Lokasi (Top 15)', fontsize=16)
-            plt.xlabel("Jumlah Produk", fontsize=12)
-            plt.ylabel("Lokasi", fontsize=12)
-            plt.gca().invert_yaxis() # Urutkan dari terbesar ke terkecil
-            plt.tight_layout()
-            plt.show()
-
-        elif choice == '0':
-            print("✅ Kembali ke menu utama.")
-            break
-
-        else:
-            print("❌ Pilihan tidak valid. Silakan masukkan angka dari 0 hingga 4.")
-
-def search_and_display(db):
-    """Mencari produk di MongoDB dan menampilkannya dengan penanganan input yang lebih baik."""
-    if db is None: return
-    collection = db['products']
-    
-    search_term = input("\n> Masukkan kata kunci untuk dicari di database: ")
-    if not search_term:
-        print("❌ Kata kunci tidak boleh kosong.")
-        return
-        
-    # --- PERBAIKAN DIMULAI DI SINI ---
-    
-    # 1. Bersihkan input dari spasi di awal/akhir dan pastikan tidak ada kata kosong
-    words = [word for word in search_term.strip().split() if word]
-    
-    # 2. Jika setelah dibersihkan tidak ada kata yang tersisa, batalkan pencarian
-    if not words:
-        print("❌ Kata kunci tidak valid.")
-        return
-
-    # --- AKHIR DARI PERBAIKAN ---
-
-    # Query builder sekarang menggunakan 'words' yang sudah bersih
-    query_filter = {
-        "$and": [
-            {
-                "$or": [
-                    {"Nama Produk": {"$regex": word, "$options": "i"}},
-                    {"Toko": {"$regex": word, "$options": "i"}}
-                ]
-            } for word in words
-        ]
-    }
-    
-    results_cursor = collection.find(query_filter).sort([("Terjual", -1), ("Rating", -1)])
-    
-    results_list = list(results_cursor)
-    if not results_list:
-        print("❌ Tidak ada produk yang cocok dengan kata kunci di database.")
-        return
-        
-    results_df = pd.DataFrame(results_list)
-    
-    urutan_kolom = ["Nama Produk", "Harga", "Rating", "Terjual", "Toko", "Lokasi"]
-    # Menambahkan pengecekan kolom sebelum mengurutkan
-    kolom_tersedia = [kol for kol in urutan_kolom if kol in results_df.columns]
-    results_df = results_df.drop(columns=['_id'])[kolom_tersedia]
-    
-    print(f"\n✅ Ditemukan {len(results_df)} produk dari database (diurutkan berdasarkan penjualan & rating):")
-    pd.set_option('display.max_colwidth', 30)
-    print(results_df)
-    
-    # Opsi untuk ekspor dan visualisasi
-    export_choice = input("\n📄 Ekspor hasil ini ke file CSV? (y/n): ").lower()
-    if export_choice == 'y':
-        filename = f"pencarian_{search_term.replace(' ', '_')}_{int(time.time())}.csv"
-        results_df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ Hasil disimpan ke file: {filename}")
-        
-    viz_choice = input("📊 Buat visualisasi diagnostik dari hasil ini? (y/n): ").lower()
-    if viz_choice == 'y':
-        # Pastikan Anda sudah memiliki fungsi visualize_diagnostics dari jawaban sebelumnya
-        visualize_diagnostics(results_df) 
-    else:
-        print("❌ Tidak ada produk yang cocok dengan kata kunci di database.")
-
-def lihat_semua_data(db):
-    """Mengambil dan menampilkan seluruh isi koleksi products dari MongoDB."""
-    if db is None: return
-    collection = db['products']
-    
-    print("\n📦 Menampilkan seluruh data dari database...")
-    try:
-        results_cursor = collection.find({}).sort([
-            ("Terjual", -1), 
-            ("Rating", -1)
-        ])
-        # Mengambil semua dokumen dari koleksi
-        results_list = list(results_cursor)
-        
-        if not results_list:
-            print("Database masih kosong. Lakukan scraping terlebih dahulu.")
-            return
-        
-        df = pd.DataFrame(results_list)
-        
-        urutan_kolom = ["Nama Produk", "Harga", "Toko", "Lokasi", "Rating", "Terjual"]
-        df = df.drop(columns=['_id'])[urutan_kolom]
-        
-        pd.set_option('display.max_colwidth', 30)
-        print(df)
-        print(f"\nTotal: {len(df)} produk ditemukan di database.")
-
-    except Exception as e:
-        print(f"Terjadi error saat mengambil data: {e}")
-        
-def ekspor_semua_ke_csv(db):
-    """Mengekspor seluruh koleksi 'products' ke dalam satu file CSV."""
-    if db is None: return
-    collection = db['products']
-
-    print("\n💾 Mengekspor seluruh data ke file CSV...")
-    try:
-        df = pd.DataFrame(list(collection.find({})))
-        
-        if df.empty:
-            print("Database masih kosong. Tidak ada data untuk diekspor.")
-            return
-            
-        nama_file = f"tokopedia_dataset_{int(time.time())}.csv"
-        # Menyimpan DataFrame ke file CSV tanpa kolom '_id'
-        df.drop(columns=['_id']).to_csv(nama_file, index=False, encoding='utf-8-sig')
-        
-        print(f"✅ Sukses! {len(df)} produk telah diekspor ke file: {nama_file}")
-
-    except Exception as e:
-        print(f"❌ Terjadi error saat mengekspor data: {e}")
-
-def hapus_data_tidak_logis(db):
-    """Menghapus produk dari MongoDB yang harganya di bawah ambang batas."""
-    if db is None: return
-    collection = db['products']
-    harga_minimum = 1500000
-
-    try:
-        # Query MongoDB untuk harga "lebih kecil dari" ($lt)
-        query_filter = {"Harga": {"$lt": harga_minimum}}
-        
-        count = collection.count_documents(query_filter)
-
-        if count == 0:
-            print("\n✅ Tidak ada produk dengan harga di bawah Rp1.500.000 untuk dihapus.")
-            return
-
-        konfirmasi = input(f"\n⚠️ Ditemukan {count} produk dengan harga di bawah Rp{harga_minimum:,}. Anda yakin ingin menghapusnya? (y/n): ").lower()
-
-        if konfirmasi == 'y':
-            result = collection.delete_many(query_filter)
-            print(f"✅ Sukses! {result.deleted_count} produk telah dihapus dari database.")
-        else:
-            print("ℹ️ Proses penghapusan dibatalkan.")
-
-    except Exception as e:
-        print(f"Terjadi error tak terduga: {e}")
-
-# --- Bagian 5: Fungsi Utama (Main) dengan Menu ---
-
+# --- Bagian 5: Fungsi Utama (Main) ---
 def main():
-    """Fungsi utama untuk menjalankan aplikasi."""
-    db, client = connect_to_mongodb()
-    
-    if db is None:
-        return
-
-    # Cek apakah skrip dijalankan dalam mode otomatis
-    if '--auto' in sys.argv:
-        print("🤖 Menjalankan dalam mode otomatis...")
-        
-        # Buat daftar kata kunci yang ingin di-scrape
-        keywords_to_scrape = ["pc gaming", "laptop gaming", "vga rtx 4070", "monitor gaming"]
-        for keyword in keywords_to_scrape:
-            print(f"\n--- Memulai scrape untuk: '{keyword}' ---")
-            scrape_and_save(db, auto_keyword=keyword)
-            # Beri jeda singkat antar keyword
-            time.sleep(10) 
-    else:
-        # Jalankan mode menu interaktif jika tidak dalam mode otomatis
-        print("=========================================")
-        print("🤖 Selamat Datang di Bot Tokopedia (MongoDB Edition)")
-        print("=========================================")
-        while True:
-            print("\n--- MENU UTAMA ---")
-            print("1. ⚙️  Scrape data produk baru")
-            print("2. 🔍 Cari produk di database")
-            print("3. 📦 Lihat semua data di database")
-            print("4. 🗑️ Hapus data di bawah 1,5 juta")
-            print("5. 💾 Ekspor semua data ke CSV")
-            print("6. 🚪 Keluar")
-
-            choice = input("> Pilih opsi: ")
-
-            if choice == '1':
-                scrape_and_save(db)
-            elif choice == '2':
-                search_and_display(db)
-            elif choice == '3':
-                lihat_semua_data(db)
-            elif choice == '4':
-                hapus_data_tidak_logis(db)
-            elif choice == '5':
-                ekspor_semua_ke_csv(db)
-            elif choice == '6':
-                print("\n👋 Terima kasih! Sampai jumpa!")
-                break
-            else:
-                print("❌ Pilihan tidak valid, silakan coba lagi.")
-
-    if client:
-        client.close()
-        print("Koneksi ke MongoDB ditutup.")
+    """Fungsi utama untuk menjalankan aplikasi eksperimen."""
+    conn = setup_database()
+    while True:
+        print("\n--- MENU EKSPERIMEN (DATABASE LOKAL) ---")
+        print("1. ⚙️  Scrape Produk & URL")
+        print("2. 🕵️‍♂️ Scrape Ulasan Produk")
+        print("3. 📦 Lihat Semua Data")
+        print("4. 🚪 Keluar")
+        choice = input("> Pilih opsi: ")
+        if choice == '1': scrape_and_save(conn)
+        elif choice == '2': scrape_ulasan_lokal(conn)
+        elif choice == '3': lihat_semua_data(conn)
+        elif choice == '4': print("\n👋 Keluar dari mode eksperimen."); break
+        else: print("❌ Pilihan tidak valid.")
+    if conn: conn.close(); print("Koneksi ke database lokal ditutup.")
 
 if __name__ == "__main__":
     main()

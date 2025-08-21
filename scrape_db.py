@@ -42,7 +42,7 @@ def connect_to_mongodb():
         db = client['tokopedia_db']
         return db, client
     except Exception as e:
-        print(f"❌ Gagal terhubung ke MongoDB: {e}")
+        print(f"Gagal terhubung ke MongoDB: {e}")
         return None, None
 
 # --- Bagian 3: Fungsi-Fungsi Scraper (Struktur Asli Anda dengan Pembaruan Penting) ---
@@ -86,7 +86,7 @@ def klik_tombol_next_page(driver) -> bool:
         time.sleep(random.uniform(3, 5))
         return True
     except Exception as e:
-        print(f"❌ Gagal klik tombol next: {e}")
+        print(f"Gagal klik tombol next: {e}")
         return False
 
 def parse_terjual(text: str) -> int:
@@ -198,7 +198,7 @@ def scrape_and_save(db, auto_keyword=None):
         keyword = input("\n> Masukkan kata kunci produk untuk di-scrape: ")
 
     if not keyword:
-        print("❌ Kata kunci tidak boleh kosong.")
+        print("Kata kunci tidak boleh kosong.")
         return
 
     try:
@@ -213,7 +213,7 @@ def scrape_and_save(db, auto_keyword=None):
     hasil_df = scrape_tokopedia_realtime(keyword)
 
     if hasil_df.empty:
-        print("❌ Tidak ada produk yang ditemukan untuk di-scrape.")
+        print("Tidak ada produk yang ditemukan untuk di-scrape.")
         return
 
     collection = db['products']
@@ -294,7 +294,7 @@ def visualize_diagnostics(raw_df: pd.DataFrame):
     df = clean_data_for_analytics(raw_df)
 
     if df.empty or len(df) < 2:
-        print("❌ Tidak cukup data untuk analisis diagnostik (minimal 2 produk valid).")
+        print("Tidak cukup data untuk analisis diagnostik (minimal 2 produk valid).")
         return
 
     # Langkah 2: Buat loop untuk menu interaktif
@@ -368,7 +368,7 @@ def visualize_diagnostics(raw_df: pd.DataFrame):
             break
 
         else:
-            print("❌ Pilihan tidak valid. Silakan masukkan angka dari 0 hingga 4.")
+            print("Pilihan tidak valid. Silakan masukkan angka dari 0 hingga 4.")
 
 def search_and_display(db):
     """Mencari produk di MongoDB dan menampilkannya dengan penanganan input yang lebih baik."""
@@ -377,7 +377,7 @@ def search_and_display(db):
     
     search_term = input("\n> Masukkan kata kunci untuk dicari di database: ")
     if not search_term:
-        print("❌ Kata kunci tidak boleh kosong.")
+        print("Kata kunci tidak boleh kosong.")
         return
         
     # --- PERBAIKAN DIMULAI DI SINI ---
@@ -387,7 +387,7 @@ def search_and_display(db):
     
     # 2. Jika setelah dibersihkan tidak ada kata yang tersisa, batalkan pencarian
     if not words:
-        print("❌ Kata kunci tidak valid.")
+        print("Kata kunci tidak valid.")
         return
 
     # --- AKHIR DARI PERBAIKAN ---
@@ -408,7 +408,7 @@ def search_and_display(db):
     
     results_list = list(results_cursor)
     if not results_list:
-        print("❌ Tidak ada produk yang cocok dengan kata kunci di database.")
+        print("Tidak ada produk yang cocok dengan kata kunci di database.")
         return
         
     results_df = pd.DataFrame(results_list)
@@ -434,7 +434,7 @@ def search_and_display(db):
         # Pastikan Anda sudah memiliki fungsi visualize_diagnostics dari jawaban sebelumnya
         visualize_diagnostics(results_df) 
     else:
-        print("❌ Tidak ada produk yang cocok dengan kata kunci di database.")
+        print("Tidak ada produk yang cocok dengan kata kunci di database.")
 
 def lihat_semua_data(db):
     """Mengambil dan menampilkan seluruh isi koleksi products dari MongoDB."""
@@ -486,7 +486,7 @@ def ekspor_semua_ke_csv(db):
         print(f"✅ Sukses! {len(df)} produk telah diekspor ke file: {nama_file}")
 
     except Exception as e:
-        print(f"❌ Terjadi error saat mengekspor data: {e}")
+        print(f"Terjadi error saat mengekspor data: {e}")
 
 def hapus_data_tidak_logis(db):
     """Menghapus produk dari MongoDB yang harganya di bawah ambang batas."""
@@ -565,7 +565,7 @@ def main():
                 print("\n👋 Terima kasih! Sampai jumpa!")
                 break
             else:
-                print("❌ Pilihan tidak valid, silakan coba lagi.")
+                print("Pilihan tidak valid, silakan coba lagi.")
 
     if client:
         client.close()

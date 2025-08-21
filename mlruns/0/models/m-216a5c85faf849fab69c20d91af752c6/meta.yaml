@@ -1,0 +1,10 @@
+artifact_location: file:///C:/work/toped_scrape/mlruns/0/models/m-216a5c85faf849fab69c20d91af752c6/artifacts
+creation_timestamp: 1755682776350
+experiment_id: '0'
+last_updated_timestamp: 1755682779110
+model_id: m-216a5c85faf849fab69c20d91af752c6
+model_type: null
+name: kmeans_model
+source_run_id: 8c73d68a749d438db4b59db65ba02ae8
+status: 2
+status_message: null

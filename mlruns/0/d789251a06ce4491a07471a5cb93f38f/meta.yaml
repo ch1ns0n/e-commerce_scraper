@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/work/toped_scrape/mlruns/0/d789251a06ce4491a07471a5cb93f38f/artifacts
+end_time: 1755672749653
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: d789251a06ce4491a07471a5cb93f38f
+run_name: unleashed-whale-697
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755672736519
+status: 3
+tags: []
+user_id: user

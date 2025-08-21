@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/work/toped_scrape/mlruns/0/8c73d68a749d438db4b59db65ba02ae8/artifacts
+end_time: 1755682786477
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 8c73d68a749d438db4b59db65ba02ae8
+run_name: beautiful-gull-742
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755682774952
+status: 3
+tags: []
+user_id: user

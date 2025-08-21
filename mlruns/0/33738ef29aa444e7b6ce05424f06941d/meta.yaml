@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/work/toped_scrape/mlruns/0/33738ef29aa444e7b6ce05424f06941d/artifacts
+end_time: 1755682190550
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 33738ef29aa444e7b6ce05424f06941d
+run_name: worried-shrike-558
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755682179140
+status: 3
+tags: []
+user_id: user

@@ -1,0 +1,20 @@
+# Abaikan folder virtual environment jika ada
+.venv
+venv
+
+# Abaikan file dan folder Git
+.git
+.gitignore
+
+# Abaikan file dan folder spesifik VS Code
+.vscode/
+
+# Abaikan cache Python
+__pycache__/
+
+# Abaikan file-file yang dihasilkan oleh skrip
+*.pkl
+*.csv
+*.db
+*.log
+mlruns/

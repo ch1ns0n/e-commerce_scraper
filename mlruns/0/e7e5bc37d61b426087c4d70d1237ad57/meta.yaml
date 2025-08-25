@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/work/toped_scrape/mlruns/0/e7e5bc37d61b426087c4d70d1237ad57/artifacts
+end_time: 1756098900862
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: e7e5bc37d61b426087c4d70d1237ad57
+run_name: intelligent-kit-596
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1756098890316
+status: 3
+tags: []
+user_id: user

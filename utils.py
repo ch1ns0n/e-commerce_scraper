@@ -270,3 +270,30 @@ def jalankan_clustering():
         
         if client: client.close()
         return f"Selesai! {update_count} produk diberi label cluster. Silhouette Score: {score:.3f}"
+
+def hapus_data_dibawah_harga(db, harga_minimum: int):
+    """Menemukan dan menghapus produk di bawah harga minimum dari MongoDB."""
+    if db is None:
+        print("Koneksi database tidak tersedia.")
+        return 0, 0 # Mengembalikan 0 jika tidak ada koneksi
+        
+    collection = db['products']
+    query_filter = {"Harga": {"$lt": harga_minimum}}
+    
+    try:
+        # Hitung dulu berapa banyak dokumen yang cocok
+        count = collection.count_documents(query_filter)
+        
+        if count == 0:
+            return 0, 0 # Tidak ada yang perlu dihapus
+        
+        # Lakukan penghapusan
+        result = collection.delete_many(query_filter)
+        deleted_count = result.deleted_count
+        
+        print(f"✅ Sukses! {deleted_count} produk telah dihapus dari database.")
+        return count, deleted_count
+        
+    except Exception as e:
+        print(f"Terjadi error tak terduga saat membersihkan data: {e}")
+        return 0, 0

@@ -3,18 +3,7 @@ import pandas as pd
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import joblib
-
-# --- Fungsi Pemuatan Data & Model (WAJIB ADA di setiap halaman) ---
-@st.cache_data
-def load_data():
-    uri = "mongodb+srv://samuelchinson:test123@cluster0.bxaivdh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-    client = MongoClient(uri, server_api=ServerApi('1'))
-    db = client['tokopedia_db']
-    collection = db['products']
-    df = pd.DataFrame(list(collection.find({})))
-    if '_id' in df.columns: df = df.drop(columns=['_id'])
-    if 'Cluster' in df.columns: df['Cluster'] = df['Cluster'].fillna(-1).astype(int)
-    return df
+from utils import load_data_for_dashboard
 
 @st.cache_resource
 def load_models():
@@ -25,7 +14,7 @@ def load_models():
     except FileNotFoundError:
         return None, None
 
-df = load_data()
+df = load_data_for_dashboard()
 scaler, model = load_models()
 
 # --- Tampilan Halaman Simulasi ---

@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/work/toped_scrape/mlruns/0/8a95f3bf16ef40c5a14f649c2fd61079/artifacts
+end_time: 1756287092386
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 8a95f3bf16ef40c5a14f649c2fd61079
+run_name: bittersweet-mink-103
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1756287077555
+status: 3
+tags: []
+user_id: user

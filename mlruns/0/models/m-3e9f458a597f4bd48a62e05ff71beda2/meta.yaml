@@ -1,0 +1,10 @@
+artifact_location: file:///C:/work/toped_scrape/mlruns/0/models/m-3e9f458a597f4bd48a62e05ff71beda2/artifacts
+creation_timestamp: 1756287084989
+experiment_id: '0'
+last_updated_timestamp: 1756287087320
+model_id: m-3e9f458a597f4bd48a62e05ff71beda2
+model_type: null
+name: scaler_model
+source_run_id: 8a95f3bf16ef40c5a14f649c2fd61079
+status: 2
+status_message: null

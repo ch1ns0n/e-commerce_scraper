@@ -1,81 +1,90 @@
 import streamlit as st
 import pandas as pd
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 import joblib
-from utils import load_data_for_dashboard
+import numpy as np
 
+# --- 1. FUNGSI UNTUK MEMUAT ASET MODEL ---
 @st.cache_resource
-def load_models():
+def load_prediction_assets():
+    """Memuat model prediksi dan preprocessor yang sudah dilatih."""
     try:
-        scaler = joblib.load('scaler.pkl')
-        model = joblib.load('kmeans_model.pkl')
-        return scaler, model
+        model = joblib.load('price_model.pkl')
+        preprocessor = joblib.load('preprocessor.pkl')
+        return model, preprocessor
     except FileNotFoundError:
         return None, None
 
-df = load_data_for_dashboard()
-scaler, model = load_models()
+# --- 2. MUAT MODEL & PREPROCESSOR ---
+model, preprocessor = load_prediction_assets()
 
-# --- Tampilan Halaman Simulasi ---
-st.title("🚀 Asisten Peluncuran Produk")
-st.write("Masukkan spesifikasi komponen PC yang Anda rencanakan untuk dijual untuk mendapatkan analisis pasar.")
+# --- TAMPILAN HALAMAN APLIKASI ---
+st.set_page_config(page_title="Prediksi Harga PC", layout="centered")
+st.title("🤖 Asisten Prediksi Harga PC Gaming")
+st.write("Masukkan spesifikasi komponen PC untuk mendapatkan estimasi harga pasar yang wajar berdasarkan model Machine Learning.")
 
-if scaler is None or model is None:
-    st.error("Model tidak ditemukan! Harap jalankan `run_clustering.py` terlebih dahulu untuk membuat file `scaler.pkl` dan `kmeans_model.pkl`.")
+# Tampilkan pesan error jika model tidak ditemukan
+if model is None or preprocessor is None:
+    st.error(
+        "File model 'price_model.pkl' atau 'preprocessor.pkl' tidak ditemukan. "
+        "Pastikan Anda sudah menjalankan notebook pelatihan dan menempatkan file-file tersebut di folder yang benar."
+    )
 else:
-    with st.form("simulasi_form"):
-        st.subheader("Masukkan Spesifikasi Produk Baru Anda")
-        rating_target = st.slider("Target Rating Produk Anda:", 1.0, 5.0, 4.8, 0.1)
-        st.markdown("Pilih komponen utama untuk estimasi harga:")
+    # --- 3. BUAT FORM INPUT DARI PENGGUNA ---
+    with st.form("prediction_form"):
+        st.subheader("Masukkan Spesifikasi PC Anda")
+
+        # --- PERBAIKAN AttributeError DI SINI ---
+        # Mengakses langkah 'onehot' di dalam pipeline untuk mendapatkan kategori
+        ohe = preprocessor.named_transformers_['cat'].named_steps['onehot']
+        cpu_options = list(ohe.categories_[0])
+        gpu_options = list(ohe.categories_[1])
+        storage_options = list(ohe.categories_[2])
+        
         col1, col2 = st.columns(2)
         with col1:
-            pilihan_cpu = st.selectbox("Prosesor (CPU):", ('i3', 'i5', 'i7', 'i9', 'Ryzen 3', 'Ryzen 5', 'Ryzen 7', 'Ryzen 9'))
+            cpu_model = st.selectbox("Pilih Model CPU:", options=cpu_options)
+            ram_size = st.number_input("Ukuran RAM (GB):", min_value=4, max_value=128, value=16, step=4)
+            rating = st.slider("Target Rating Produk Anda:", 1.0, 5.0, 4.8, 0.1)
+        
         with col2:
-            pilihan_gpu = st.selectbox("Kartu Grafis (GPU):", ('RTX 3050', 'RTX 3060', 'RTX 3070', 'RTX 3080', 'RTX 3090', 'RTX 4050', 'RTX 4060', 'RTX 4070', 'RTX 4080', 'RTX 4090', 'RX 6500', 'RX 6700 XT', 'RX 6800 XT', 'RX 6900 XT'))
+            gpu_model = st.selectbox("Pilih Model GPU:", options=gpu_options)
+            storage = st.selectbox("Pilih Storage:", options=storage_options)
+            terjual = st.number_input("Estimasi Penjualan per Bulan:", min_value=0, max_value=1000, value=10)
+        
+        # --- PERBAIKAN Missing Submit Button DI SINI ---
+        submitted = st.form_submit_button("Prediksi Harga")
 
-        submitted = st.form_submit_button("Jalankan Simulasi")
-
+        # --- 4. PROSES PREDIKSI SETELAH TOMBOL DITEKAN ---
         if submitted:
-            df_spek_serupa = df[
-                (df['Nama Produk'].str.contains(pilihan_cpu, case=False, na=False)) & 
-                (df['Nama Produk'].str.contains(pilihan_gpu, case=False, na=False))
-            ]
-            
-            if df_spek_serupa.empty:
-                st.warning("Tidak ditemukan produk dengan kombinasi spek serupa. Menggunakan rata-rata harga keseluruhan sebagai estimasi.")
-                harga_awal = int(df['Harga'].mean())
-            else:
-                harga_awal = int(df_spek_serupa['Harga'].mean())
-            
+            # Buat DataFrame dari input pengguna
             input_data = pd.DataFrame({
-                'Harga': [harga_awal],
-                'Rating': [rating_target],
-                'Terjual': [1] # Menggunakan nama kolom yang benar
+                'CPU_Model': [cpu_model],
+                'GPU_Model': [gpu_model],
+                'Storage': [storage],
+                'RAM_Size': [ram_size],
+                'Rating': [rating],
+                'Terjual': [terjual]
             })
 
-            input_scaled = scaler.transform(input_data)
-            prediksi_cluster = model.predict(input_scaled)[0] + 1
+            # Lakukan transformasi pada data input menggunakan preprocessor
+            input_processed = preprocessor.transform(input_data)
             
-            st.success(f"Analisis Selesai! Estimasi harga awal untuk spek ini adalah **Rp {harga_awal:,}**.")
-            st.header(f"Prediksi Segmen Pasar: Cluster {prediksi_cluster}")
+            # Lakukan prediksi menggunakan model
+            predicted_price = model.predict(input_processed)
+            
+            # Ambil nilai prediksi pertama
+            price = int(predicted_price[0])
 
-            df_kompetitor = df[df['Cluster'] == prediksi_cluster]
+            # Tentukan rentang harga wajar berdasarkan RMSE (sekitar 7.5 juta)
+            price_error_margin = 7500000 
+            lower_bound = int(price - price_error_margin)
+            upper_bound = int(price + price_error_margin)
 
-            if not df_kompetitor.empty:
-                harga_avg = int(df_kompetitor['Harga'].mean())
-                harga_min_comp = int(df_kompetitor['Harga'].min())
-                harga_max_comp = int(df_kompetitor['Harga'].max())
-                
-                st.subheader(f"📈 Benchmarking Harga (Berdasarkan {len(df_kompetitor)} Kompetitor di Cluster {prediksi_cluster})")
-                st.info(f"Untuk bersaing di segmen ini, kompetitor menjual produk di rentang **Rp {harga_min_comp:,}** hingga **Rp {harga_max_comp:,}**.")
-                
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Rata-rata Harga Kompetitor", f"Rp {harga_avg:,}")
-                c2.metric("Harga Terendah", f"Rp {harga_min_comp:,}")
-                c3.metric("Harga Tertinggi", f"Rp {harga_max_comp:,}")
-
-                st.subheader("🏆 Kompetitor Utama di Segmen Ini")
-                st.dataframe(df_kompetitor['Toko'].value_counts().nlargest(5))
-            else:
-                st.info("Tidak ditemukan kompetitor langsung di segmen ini. Ini bisa menjadi peluang!")
+            # --- 5. TAMPILKAN HASIL PREDIKSI ---
+            st.success("Analisis selesai!")
+            st.header(f"Estimasi Harga Pasar: Rp {price:,}")
+            
+            st.info(
+                f"Berdasarkan model, rentang harga kompetitif untuk spesifikasi ini adalah antara **Rp {lower_bound:,}** dan **Rp {upper_bound:,}**."
+            )
+            st.write("Rekomendasi ini dibuat berdasarkan perbandingan dengan ribuan produk serupa di pasar.")

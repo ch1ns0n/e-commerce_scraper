@@ -3,10 +3,10 @@ import pandas as pd
 import joblib
 import numpy as np
 
-# --- 1. FUNGSI UNTUK MEMUAT ASET MODEL ---
+# --- 1. FUNCTION TO LOAD MODEL ASSETS ---
 @st.cache_resource
 def load_prediction_assets():
-    """Memuat model prediksi dan preprocessor yang sudah dilatih."""
+    """Loads the trained prediction model and preprocessor."""
     try:
         model = joblib.load('price_model.pkl')
         preprocessor = joblib.load('preprocessor.pkl')
@@ -14,27 +14,26 @@ def load_prediction_assets():
     except FileNotFoundError:
         return None, None
 
-# --- 2. MUAT MODEL & PREPROCESSOR ---
+# --- 2. LOAD MODEL & PREPROCESSOR ---
 model, preprocessor = load_prediction_assets()
 
-# --- TAMPILAN HALAMAN APLIKASI ---
-st.set_page_config(page_title="Prediksi Harga PC", layout="centered")
-st.title("🤖 Asisten Prediksi Harga PC Gaming")
-st.write("Masukkan spesifikasi komponen PC untuk mendapatkan estimasi harga pasar yang wajar berdasarkan model Machine Learning.")
+# --- APPLICATION PAGE DISPLAY ---
+st.set_page_config(page_title="PC Price Prediction", layout="centered")
+st.title("🤖 Gaming PC Price Prediction Assistant")
+st.write("Enter the PC component specifications to get a fair market price estimate based on the Machine Learning model.")
 
-# Tampilkan pesan error jika model tidak ditemukan
+# Display an error message if the model is not found
 if model is None or preprocessor is None:
     st.error(
-        "File model 'price_model.pkl' atau 'preprocessor.pkl' tidak ditemukan. "
-        "Pastikan Anda sudah menjalankan notebook pelatihan dan menempatkan file-file tersebut di folder yang benar."
+        "Model file 'price_model.pkl' or 'preprocessor.pkl' not found. "
+        "Please ensure you have run the training notebook and placed these files in the correct directory."
     )
 else:
-    # --- 3. BUAT FORM INPUT DARI PENGGUNA ---
+    # --- 3. CREATE USER INPUT FORM ---
     with st.form("prediction_form"):
-        st.subheader("Masukkan Spesifikasi PC Anda")
+        st.subheader("Enter Your PC Specifications")
 
-        # --- PERBAIKAN AttributeError DI SINI ---
-        # Mengakses langkah 'onehot' di dalam pipeline untuk mendapatkan kategori
+        # Access the 'onehot' step within the pipeline to get categories
         ohe = preprocessor.named_transformers_['cat'].named_steps['onehot']
         cpu_options = list(ohe.categories_[0])
         gpu_options = list(ohe.categories_[1])
@@ -42,49 +41,48 @@ else:
         
         col1, col2 = st.columns(2)
         with col1:
-            cpu_model = st.selectbox("Pilih Model CPU:", options=cpu_options)
-            ram_size = st.number_input("Ukuran RAM (GB):", min_value=4, max_value=128, value=16, step=4)
-            rating = st.slider("Target Rating Produk Anda:", 1.0, 5.0, 4.8, 0.1)
+            cpu_model = st.selectbox("Select CPU Model:", options=cpu_options)
+            ram_size = st.number_input("RAM Size (GB):", min_value=4, max_value=128, value=16, step=4)
+            rating = st.slider("Your Product's Target Rating:", 1.0, 5.0, 4.8, 0.1)
         
         with col2:
-            gpu_model = st.selectbox("Pilih Model GPU:", options=gpu_options)
-            storage = st.selectbox("Pilih Storage:", options=storage_options)
-            terjual = st.number_input("Estimasi Penjualan per Bulan:", min_value=0, max_value=1000, value=10)
+            gpu_model = st.selectbox("Select GPU Model:", options=gpu_options)
+            storage = st.selectbox("Select Storage:", options=storage_options)
+            sold = st.number_input("Estimated Monthly Sales:", min_value=0, max_value=1000, value=10)
         
-        # --- PERBAIKAN Missing Submit Button DI SINI ---
-        submitted = st.form_submit_button("Prediksi Harga")
+        submitted = st.form_submit_button("Predict Price")
 
-        # --- 4. PROSES PREDIKSI SETELAH TOMBOL DITEKAN ---
+        # --- 4. PREDICTION PROCESS AFTER BUTTON IS CLICKED ---
         if submitted:
-            # Buat DataFrame dari input pengguna
+            # Create a DataFrame from user input
             input_data = pd.DataFrame({
                 'CPU_Model': [cpu_model],
                 'GPU_Model': [gpu_model],
                 'Storage': [storage],
                 'RAM_Size': [ram_size],
                 'Rating': [rating],
-                'Terjual': [terjual]
+                'Terjual': [sold] # Changed variable name to 'sold' for clarity
             })
 
-            # Lakukan transformasi pada data input menggunakan preprocessor
+            # Transform the input data using the preprocessor
             input_processed = preprocessor.transform(input_data)
             
-            # Lakukan prediksi menggunakan model
+            # Make a prediction using the model
             predicted_price = model.predict(input_processed)
             
-            # Ambil nilai prediksi pertama
+            # Get the first prediction value
             price = int(predicted_price[0])
 
-            # Tentukan rentang harga wajar berdasarkan RMSE (sekitar 7.5 juta)
+            # Determine a fair price range based on the RMSE (approx. 7.5 million)
             price_error_margin = 7500000 
             lower_bound = int(price - price_error_margin)
             upper_bound = int(price + price_error_margin)
 
-            # --- 5. TAMPILKAN HASIL PREDIKSI ---
-            st.success("Analisis selesai!")
-            st.header(f"Estimasi Harga Pasar: Rp {price:,}")
+            # --- 5. DISPLAY THE PREDICTION RESULT ---
+            st.success("Analysis complete!")
+            st.header(f"Estimated Market Price: IDR {price:,}")
             
             st.info(
-                f"Berdasarkan model, rentang harga kompetitif untuk spesifikasi ini adalah antara **Rp {lower_bound:,}** dan **Rp {upper_bound:,}**."
+                f"Based on the model, the competitive price range for this specification is between **IDR {lower_bound:,}** and **IDR {upper_bound:,}**."
             )
-            st.write("Rekomendasi ini dibuat berdasarkan perbandingan dengan ribuan produk serupa di pasar.")
+            st.write("This recommendation is made based on a comparison with thousands of similar products in the market.")

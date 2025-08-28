@@ -1,0 +1,14 @@
+artifact_path: file:///C:/work/toped_scrape/mlruns/0/models/m-a283cfc66ae34a8c932e581126b9a084/artifacts
+flavors:
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.1
+mlflow_version: 3.3.0
+model_id: m-a283cfc66ae34a8c932e581126b9a084
+model_size_bytes: 636
+model_uuid: m-a283cfc66ae34a8c932e581126b9a084
+prompts: null
+run_id: d304312b4a1f44748e8a72262901ea1d
+utc_time_created: '2025-08-28 04:46:58.213565'

@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/work/toped_scrape/mlruns/0/d304312b4a1f44748e8a72262901ea1d/artifacts
+end_time: 1756356425923
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: d304312b4a1f44748e8a72262901ea1d
+run_name: industrious-jay-359
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1756356410413
+status: 3
+tags: []
+user_id: user

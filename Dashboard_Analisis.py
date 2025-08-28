@@ -3,88 +3,109 @@ import pandas as pd
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from sklearn.preprocessing import MinMaxScaler
-from utils import load_data_for_dashboard
+from utils import load_data_for_dashboard  # Assuming this function exists and works
 import plotly.express as px
 
-# --- Konfigurasi Halaman Web ---
-st.set_page_config(page_title="Dashboard Analisis", layout="wide")
+# --- Web Page Configuration ---
+st.set_page_config(page_title="Analysis Dashboard", layout="wide")
 
+# Load data using the utility function
 df = load_data_for_dashboard()
 
-# --- Tampilan Halaman ---
-st.title("📊 Dashboard Analisis Pasar PC Gaming di Tokopedia")
-st.write("Dashboard ini memvisualisasikan data produk hasil scraping untuk analisis kompetitor.")
+# Rename columns to English for consistency
+# Create a mapping for original Indonesian names to new English names
+column_mapping = {
+    'Nama Produk': 'Product Name',
+    'Harga': 'Price',
+    'Toko': 'Store',
+    'Lokasi': 'Location',
+    'Terjual': 'Sold'
+}
+df.rename(columns=column_mapping, inplace=True)
 
-# --- Sidebar untuk Filter ---
-st.sidebar.header("Filter & Pencarian")
-search_query = st.sidebar.text_input("Cari Nama Produk atau Toko:")
 
-all_lokasi = sorted(df["Lokasi"].unique())
-select_all_option = "(Pilih Semua)"
-options = [select_all_option] + all_lokasi
+# --- Page Display ---
+st.title("📊 Gaming PC Market Analysis Dashboard")
+st.write("This dashboard visualizes scraped product data for competitor analysis.")
 
-lokasi_selection = st.sidebar.multiselect(
-    "Pilih Lokasi Toko:",
-    options=options,
-    default=select_all_option
-)
+# --- Sidebar for Filters ---
+st.sidebar.header("Filter & Search")
+search_query = st.sidebar.text_input("Search Product Name or Store:")
 
-if select_all_option in lokasi_selection or not lokasi_selection:
-    final_lokasi_filter = all_lokasi
+# Ensure 'Location' column exists before proceeding
+if 'Location' in df.columns:
+    all_locations = sorted(df["Location"].unique())
+    select_all_option = "(Select All)"
+    options = [select_all_option] + all_locations
+
+    location_selection = st.sidebar.multiselect(
+        "Select Store Location:",
+        options=options,
+        default=select_all_option
+    )
+
+    if select_all_option in location_selection or not location_selection:
+        final_location_filter = all_locations
+    else:
+        final_location_filter = location_selection
 else:
-    final_lokasi_filter = lokasi_selection
-    
-harga_min, harga_max = st.sidebar.slider(
-    "Rentang Harga (Rp):",
-    min_value=int(df["Harga"].min()),
-    max_value=int(df["Harga"].max()),
-    value=(int(df["Harga"].min()), int(df["Harga"].max()))
-)
+    final_location_filter = []
 
-# Terapkan filter awal
-df_selection = df[
-    df["Lokasi"].isin(final_lokasi_filter) &
-    df["Harga"].between(harga_min, harga_max)
-].copy()
+# Ensure 'Price' column exists before creating the slider
+if 'Price' in df.columns and not df.empty:
+    price_min, price_max = st.sidebar.slider(
+        "Price Range (IDR):",
+        min_value=int(df["Price"].min()),
+        max_value=int(df["Price"].max()),
+        value=(int(df["Price"].min()), int(df["Price"].max()))
+    )
+else:
+    price_min, price_max = 0, 100000000 # Default values if no data
 
-# Terapkan filter pencarian
+# Apply initial filters
+df_selection = df.copy()
+if 'Location' in df.columns:
+    df_selection = df_selection[df_selection["Location"].isin(final_location_filter)]
+if 'Price' in df.columns:
+    df_selection = df_selection[df_selection["Price"].between(price_min, price_max)]
+
+
+# Apply search filter
 if search_query:
     words = [word for word in search_query.strip().split() if word]
     for word in words:
-        word_mask = (df_selection['Nama Produk'].str.contains(word, case=False, na=False) |
-                     df_selection['Toko'].str.contains(word, case=False, na=False))
+        word_mask = (df_selection['Product Name'].str.contains(word, case=False, na=False) |
+                     df_selection['Store'].str.contains(word, case=False, na=False))
         df_selection = df_selection[word_mask]
 
-# DIUBAH: Menggunakan nama kolom yang benar "Terjual"
-df_display = df_selection.sort_values(by=["Terjual", "Rating"], ascending=[False, False])
+# Sort the displayed data
+df_display = df_selection.sort_values(by=["Sold", "Rating"], ascending=[False, False])
 
-# --- Tampilan Utama ---
+# --- Main Display ---
 with st.container(border=True):
-    total_produk = len(df_display)
-    harga_rata2 = int(df_display["Harga"].mean()) if total_produk > 0 else 0
-    # DIUBAH: Menggunakan nama kolom yang benar "Terjual"
-    terjual_rata2 = int(df_display["Terjual"].mean()) if total_produk > 0 else 0
+    total_products = len(df_display)
+    avg_price = int(df_display["Price"].mean()) if total_products > 0 else 0
+    avg_sales = int(df_display["Sold"].mean()) if total_products > 0 else 0
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Produk Ditemukan", f"{total_produk}")
-    col2.metric("Rata-rata Harga", f"Rp {harga_rata2:,}")
-    col3.metric("Rata-rata Penjualan", f"{int(terjual_rata2)}")
+    col1.metric("Total Products Found", f"{total_products}")
+    col2.metric("Average Price", f"IDR {avg_price:,}")
+    col3.metric("Average Sales", f"{int(avg_sales)}")
 
-if total_produk > 0:
-    # DIUBAH: Struktur Tab yang lebih rapi
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Peta & Peringkat", "🔬 Analisis Segmen", "🕵️‍♂️ Intip Kompetitor", "💎 Kalkulator Peluang", "📋 Data Mentah"])
+if total_products > 0:
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Map & Rankings", "🔬 Segment Analysis", "🕵️‍♂️ Competitor Spy", "💎 Opportunity Calculator", "📋 Raw Data"])
 
     with tab1:
-        st.header("Visualisasi Utama Pasar")
+        st.header("Main Market Visualization")
         fig_scatter = px.scatter(
             df_display[df_display.get('Cluster', pd.Series([-1])).ne(-1)],
-            x="Terjual", y="Harga", color="Cluster", hover_name="Nama Produk",
-            title="Peta Segmen Pasar (Harga vs. Penjualan)"
+            x="Sold", y="Price", color="Cluster", hover_name="Product Name",
+            title="Market Segment Map (Price vs. Sales)"
         )
-        df_top_toko = df_display['Toko'].value_counts().nlargest(10)
+        df_top_stores = df_display['Store'].value_counts().nlargest(10)
         fig_bar = px.bar(
-            df_top_toko, orientation='h', title="Papan Peringkat Toko (Top 10)",
-            labels={'value': 'Jumlah Produk', 'index': 'Toko'}
+            df_top_stores, orientation='h', title="Store Leaderboard (Top 10)",
+            labels={'value': 'Number of Products', 'index': 'Store'}
         )
         fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
         
@@ -93,55 +114,55 @@ if total_produk > 0:
         right_column.plotly_chart(fig_bar, use_container_width=True)
         
     with tab2:
-        st.header("Analisis Mendalam per Segmen Pasar")
-        st.subheader("Perbandingan Distribusi Harga per Segmen")
+        st.header("In-depth Analysis per Market Segment")
+        st.subheader("Price Distribution Comparison per Segment")
         fig_box = px.box(
-            df_display[df_display['Cluster'] > 0], x="Cluster", y="Harga", color="Cluster",
-            points="all", notched=True, title="Distribusi Harga di Setiap Cluster"
+            df_display[df_display['Cluster'] > 0], x="Cluster", y="Price", color="Cluster",
+            points="all", notched=True, title="Price Distribution in Each Cluster"
         )
         st.plotly_chart(fig_box, use_container_width=True)
         
-        st.subheader("Struktur Pasar Berdasarkan Total Penjualan Toko")
-        df_treemap = df_display[df_display['Cluster'] > 0].groupby(['Cluster', 'Toko'])['Terjual'].sum().reset_index()
+        st.subheader("Market Structure by Total Store Sales")
+        df_treemap = df_display[df_display['Cluster'] > 0].groupby(['Cluster', 'Store'])['Sold'].sum().reset_index()
         if not df_treemap.empty:
             fig_treemap = px.treemap(
-                df_treemap, path=[px.Constant("Semua Pasar"), 'Cluster', 'Toko'],
-                values='Terjual', title="Peta Pangsa Pasar per Segmen"
+                df_treemap, path=[px.Constant("All Markets"), 'Cluster', 'Store'],
+                values='Sold', title="Market Share Map per Segment"
             )
             st.plotly_chart(fig_treemap, use_container_width=True)
 
     with tab3:
-        st.header("🕵️‍♂️ Intip Kompetitor")
-        list_toko_filtered = df_display['Toko'].unique()
-        toko_terpilih = st.selectbox("Pilih Toko untuk dianalisis:", options=list_toko_filtered)
-        if toko_terpilih:
-            df_toko = df_display[df_display['Toko'] == toko_terpilih]
-            st.subheader(f"Profil Toko: {toko_terpilih}")
-            total_produk_toko = len(df_toko)
-            harga_rata2_toko = int(df_toko["Harga"].mean()) if total_produk_toko > 0 else 0
-            terjual_rata2_toko = int(df_toko["Terjual"].mean()) if total_produk_toko > 0 else 0
+        st.header("🕵️‍♂️ Competitor Spy")
+        filtered_store_list = df_display['Store'].unique()
+        selected_store = st.selectbox("Select a store to analyze:", options=filtered_store_list)
+        if selected_store:
+            df_store = df_display[df_display['Store'] == selected_store]
+            st.subheader(f"Store Profile: {selected_store}")
+            total_products_store = len(df_store)
+            avg_price_store = int(df_store["Price"].mean()) if total_products_store > 0 else 0
+            avg_sales_store = int(df_store["Sold"].mean()) if total_products_store > 0 else 0
             c1, c2, c3 = st.columns(3)
-            c1.metric("Jumlah Listing", f"{total_produk_toko}")
-            c2.metric("Rata-rata Harga", f"Rp {harga_rata2_toko:,}")
-            c3.metric("Rata-rata Penjualan", f"{int(terjual_rata2_toko)}")
-            st.write("**Produk Terlaris dari Toko Ini:**")
-            st.dataframe(df_toko[['Nama Produk', 'Harga', 'Rating', 'Terjual']].sort_values(by="Terjual", ascending=False).head(5))
+            c1.metric("Number of Listings", f"{total_products_store}")
+            c2.metric("Average Price", f"IDR {avg_price_store:,}")
+            c3.metric("Average Sales", f"{int(avg_sales_store)}")
+            st.write("**Best-Selling Products from This Store:**")
+            st.dataframe(df_store[['Product Name', 'Price', 'Rating', 'Sold']].sort_values(by="Sold", ascending=False).head(5))
 
     with tab4:
-        st.header("💎 Kalkulator Peluang (Produk Paling 'Worth It')")
-        df_score = df_display[(df_display['Harga'] > 0) & (df_display['Terjual'] > 0) & (df_display['Rating'] > 0)].copy()
+        st.header("💎 Opportunity Calculator (Best 'Value' Products)")
+        df_score = df_display[(df_display['Price'] > 0) & (df_display['Sold'] > 0) & (df_display['Rating'] > 0)].copy()
         if not df_score.empty:
             scaler_norm = MinMaxScaler()
-            df_score[['Harga_norm', 'Rating_norm', 'Terjual_norm']] = scaler_norm.fit_transform(df_score[['Harga', 'Rating', 'Terjual']])
-            df_score['Skor Peluang'] = ((1 - df_score['Harga_norm']) + df_score['Rating_norm'] + df_score['Terjual_norm'])
-            st.write("Top 10 produk dengan 'value' terbaik:")
-            df_top_value = df_score.sort_values(by="Skor Peluang", ascending=False).head(10)
-            st.dataframe(df_top_value[['Nama Produk', 'Harga', 'Rating', 'Terjual', 'Toko']])
+            df_score[['Price_norm', 'Rating_norm', 'Sold_norm']] = scaler_norm.fit_transform(df_score[['Price', 'Rating', 'Sold']])
+            df_score['Opportunity Score'] = ((1 - df_score['Price_norm']) + df_score['Rating_norm'] + df_score['Sold_norm'])
+            st.write("Top 10 products with the best 'value':")
+            df_top_value = df_score.sort_values(by="Opportunity Score", ascending=False).head(10)
+            st.dataframe(df_top_value[['Product Name', 'Price', 'Rating', 'Sold', 'Store']])
         else:
-            st.write("Tidak cukup data untuk menghitung skor peluang.")
+            st.write("Not enough data to calculate the opportunity score.")
     
     with tab5:
-        st.subheader("Data Produk (Diurutkan berdasarkan Penjualan & Rating)")
+        st.subheader("Raw Data (Sorted by Sales & Rating)")
         st.dataframe(df_display)
 else:
-    st.warning("Tidak ada data yang cocok dengan filter yang Anda pilih.")
+    st.warning("No data matches your selected filters.")

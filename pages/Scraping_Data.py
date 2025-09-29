@@ -1,5 +1,5 @@
 import streamlit as st
-from utils import connect_to_mongodb, scrape_and_save, jalankan_clustering, hapus_data_dibawah_harga
+from utils import connect_to_mongodb, scrape_and_save, hapus_data_dibawah_harga
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Data Control", layout="centered")
@@ -38,20 +38,10 @@ with st.form("scraping_form"):
                 else:
                     st.error("Failed to connect to the database. Process aborted.")
 
-# --- Clustering Section ---
-st.header("2. Retrain Segmentation Model (Clustering)")
-st.warning("This process will retrain the K-Means model based on the latest data in the database and update the 'Cluster' label for each product.")
-
-if st.button("🧠 Retrain Model"):
-    with st.spinner("Processing clustering... This might take a while if the dataset is large."):
-        # Call the clustering function from utils.py
-        result_message = jalankan_clustering()
-        st.success("✅ Clustering Process Complete!")
-        st.info(result_message)
 
 # --- Data Cleaning Section ---
 st.markdown("---")
-st.header("3. Clean Illogical Data")
+st.header("2. Clean Illogical Data")
 st.write("Use this feature to permanently delete products with unreasonable prices (e.g., below a certain threshold) from the database.")
 
 # Use a form to group the input and button

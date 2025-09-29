@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/work/toped_scrape/mlruns/0/fb990a3ee4484dc0b22dc38125aa5393/artifacts
+end_time: 1757487826834
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: fb990a3ee4484dc0b22dc38125aa5393
+run_name: capricious-wasp-12
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1757487808828
+status: 3
+tags: []
+user_id: user

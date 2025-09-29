@@ -221,56 +221,8 @@ def scrape_and_save(keyword: str, db):
     print(f"   -> Produk baru: {inserted_count}, Produk diperbarui: {updated_count}")
     return inserted_count, updated_count # <-- DIUBAH: Mengembalikan nilai
 
-# --- FUNGSI CLUSTERING (TANPA STREAMLIT) ---
-def jalankan_clustering():
-    """Fungsi utama untuk melatih model dan memperbarui cluster di database."""
-    db, client = connect_to_mongodb()
-    if db is None: return "Koneksi database gagal."
 
-    collection = db['products']
-    print("Memuat data dari MongoDB...")
-    df = pd.DataFrame(list(collection.find({})))
-    
-    if df.empty:
-        if client: client.close()
-        return "Tidak ada data di database untuk di-cluster."
-
-    features = ['Harga', 'Rating', 'Terjual']
-    df_clean = df.dropna(subset=features).copy()
-    df_clean = df_clean[(df_clean['Harga'] > 100000) & (df_clean['Terjual'] > 0)]
-
-    if len(df_clean) < 10:
-        if client: client.close()
-        return "Tidak cukup data untuk clustering (minimal 10 produk valid)."
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_clean[features])
-    K_OPTIMAL = 4
-    
-    with mlflow.start_run():
-        print(f"Menjalankan K-Means dengan k={K_OPTIMAL}...")
-        kmeans = KMeans(n_clusters=K_OPTIMAL, random_state=42, n_init='auto')
-        cluster_labels = kmeans.fit_predict(X_scaled)
-        score = silhouette_score(X_scaled, cluster_labels)
-        
-        mlflow.log_param("n_clusters", K_OPTIMAL)
-        mlflow.log_param("jumlah_data_dilatih", len(df_clean))
-        mlflow.log_metric("silhouette_score", score)
-        mlflow.sklearn.log_model(kmeans, "kmeans_model")
-        mlflow.sklearn.log_model(scaler, "scaler_model")
-
-        joblib.dump(scaler, 'scaler.pkl')
-        joblib.dump(kmeans, 'kmeans_model.pkl')
-
-        df_clean['Cluster'] = cluster_labels + 1
-        update_count = 0
-        for index, row in df_clean.iterrows():
-            collection.update_one({'_id': row['_id']}, {'$set': {'Cluster': int(row['Cluster'])}})
-            update_count += 1
-        
-        if client: client.close()
-        return f"Selesai! {update_count} produk diberi label cluster. Silhouette Score: {score:.3f}"
-
+# --- FUNGSI PENGHAPUSAN DATA (TANPA STREAMLIT) ---
 def hapus_data_dibawah_harga(db, harga_minimum: int):
     """Menemukan dan menghapus produk di bawah harga minimum dari MongoDB."""
     if db is None:

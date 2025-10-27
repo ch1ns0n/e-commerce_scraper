@@ -33,3 +33,25 @@ It can be used to track product prices, monitor competitors, or perform market t
 | Output | CSV / JSON |
 
 ---
+
+## 📂 Project Structure
+
+e-commerce_scraper/
+├── scraper.py # Main script for scraping product data
+├── utils.py # Helper functions for cleaning and logging
+├── requirements.txt # Project dependencies
+├── data/ # Folder for storing scraped data
+│ └── products.csv
+└── README.md
+
+---
+
+## ⚙️ Installation & Usage
+
+### 1️⃣ Clone the Repository
+```bash
+git clone https://github.com/ch1ns0n/e-commerce_scraper.git
+cd e-commerce_scraper
+pip install -r requirements.txt
+python scraper.py
+data/products.csv

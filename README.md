@@ -48,10 +48,22 @@ e-commerce_scraper/
 
 ## ⚙️ Installation & Usage
 
-### 1️⃣ Clone the Repository
+1. Clone the repo
 ```bash
 git clone https://github.com/ch1ns0n/e-commerce_scraper.git
+```
+
+2. Change directory
+```bash
 cd e-commerce_scraper
+```
+
+3. Install dependencies
+```bash
 pip install -r requirements.txt
+```
+
+4. Run the Scraper
+```bash
 python scraper.py
-data/products.csv
+```

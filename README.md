@@ -119,7 +119,5 @@ Ch1ns0n
 
 Machine Learning Engineer | Data Engineer
 
-[![GitHub]](https://github.com/ch1ns0n)
-
-🔗 GitHub
- LinkedIn
+🔗 [GitHub](https://github.com/ch1ns0n)  
+💼 [LinkedIn](https://www.linkedin.com/in/samuelchinson)

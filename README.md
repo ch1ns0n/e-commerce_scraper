@@ -37,11 +37,17 @@ It can be used to track product prices, monitor competitors, or perform market t
 ## 📂 Project Structure
 
 e-commerce_scraper/
+
 ├── scraper.py # Main script for scraping product data
+
 ├── utils.py # Helper functions for cleaning and logging
+
 ├── requirements.txt # Project dependencies
+
 ├── data/ # Folder for storing scraped data
+
 │ └── products.csv
+
 └── README.md
 
 ---
@@ -92,7 +98,9 @@ python scraper.py
 ## ⚠️ Legal & Ethical Notice
 
 This project is for educational and research purposes only.
+
 Please ensure compliance with each website’s Terms of Service and respect their robots.txt directives.
+
 Avoid scraping personal or sensitive information, and use responsible delays to prevent overloading servers.
 
 ---
@@ -108,7 +116,10 @@ Avoid scraping personal or sensitive information, and use responsible delays to 
 ## 👤 Author
 
 Ch1ns0n
+
 Machine Learning Engineer | Data Engineer
-[![Azure AI Foundry Discord](https://img.shields.io/badge/Discord-Azure_AI_Foundry_Community_Discord-blue?style=for-the-badge&logo=discord&color=5865f2&logoColor=fff)](https://github.com/ch1ns0n)
+
+[![GitHub]](https://github.com/ch1ns0n)
+
 🔗 GitHub
  LinkedIn
